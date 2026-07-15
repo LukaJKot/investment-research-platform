@@ -73,6 +73,21 @@ def calculate_leverage_ratios(income_statement, balance_sheet):
         "interest_coverage": round(interest_coverage, 4) if interest_coverage is not None else None,
     }
 
+def calculate_liquidity_ratios(balance_sheet):
+    balance = balance_sheet[0]
+
+    current_assets = balance["totalCurrentAssets"]
+    current_liabilities = balance["totalCurrentLiabilities"]
+    inventory = balance["inventory"]
+
+    current_ratio = current_assets / current_liabilities
+    quick_ratio = (current_assets - inventory) / current_liabilities
+
+    return {
+        "current_ratio": round(current_ratio, 4),
+        "quick_ratio": round(quick_ratio, 4),
+    }
+
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
@@ -84,6 +99,7 @@ def get_stock(ticker: str):
     cash_flow = get_cash_flow(ticker)
     profitability = calculate_profitability_ratios(income, balance_sheet)
     leverage = calculate_leverage_ratios(income, balance_sheet)
+    liquidity = calculate_liquidity_ratios(balance_sheet)
 
     return {
         "ticker": ticker,
@@ -93,5 +109,6 @@ def get_stock(ticker: str):
         "ratios": {
             "profitability": profitability,
             "leverage": leverage,
+            "liquidity": liquidity,
         },
     }
