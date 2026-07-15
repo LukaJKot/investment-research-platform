@@ -50,6 +50,36 @@ def get_cash_flow(ticker: str):
         return None
     return data
 
+def get_peers(ticker: str, target_market_cap):
+    url = f"https://financialmodelingprep.com/stable/stock-peers?symbol={ticker}&apikey={FMP_API_KEY}"
+    response = requests.get(url)
+    try:
+        data = response.json()
+    except ValueError:
+        return []
+    if isinstance(data, dict) or not isinstance(data, list):
+        return []
+
+    reasonable_peers = [
+        p for p in data
+        if target_market_cap * 0.2 <= p["mktCap"] <= target_market_cap * 5
+    ]
+    reasonable_peers.sort(key=lambda p: abs(p["mktCap"] - target_market_cap))
+    top_peers = reasonable_peers[:4]
+
+    return [p["symbol"] for p in top_peers]  
+
+def get_company_profile(ticker: str):
+    url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={FMP_API_KEY}"
+    response = requests.get(url)
+    try:
+        data = response.json()
+    except ValueError:
+        return None
+    if isinstance(data, dict) or not isinstance(data, list) or len(data) == 0:
+        return None
+    return data[0]      
+
 def calculate_profitability_ratios(income_statement, balance_sheet):
     income = income_statement[0]
     balance_current = balance_sheet[0]
@@ -144,6 +174,42 @@ def calculate_historical_trends(income_statement):
         })
     trends.reverse()
     return trends
+
+def get_peer_comparison(ticker: str):
+    profile = get_company_profile(ticker)
+    if profile is None:
+        return []
+
+    market_cap = profile["marketCap"]
+    peer_tickers = get_peers(ticker, market_cap)
+
+    comparison = []
+    for peer_ticker in peer_tickers:
+        peer_income = get_income_statement(peer_ticker)
+        peer_balance_sheet = get_balance_sheet(peer_ticker)
+
+        if peer_income is None or peer_balance_sheet is None:
+            continue
+
+        peer_profitability = calculate_profitability_ratios(peer_income, peer_balance_sheet)
+        peer_leverage = calculate_leverage_ratios(peer_income, peer_balance_sheet)
+        peer_liquidity = calculate_liquidity_ratios(peer_balance_sheet)
+        peer_growth = calculate_growth_ratios(peer_income)
+
+        peer_profitability_score = score_profitability(peer_profitability)
+        peer_leverage_score = score_leverage(peer_leverage)
+        peer_liquidity_score = score_liquidity(peer_liquidity)
+        peer_growth_score = score_growth(peer_growth)
+
+        peer_overall = calculate_overall_score(peer_profitability_score, peer_leverage_score, peer_liquidity_score, peer_growth_score)
+
+        comparison.append({
+            "ticker": peer_ticker,
+            "overall_score": peer_overall["overall_score"],
+            "rating": peer_overall["rating"],
+        })
+
+    return comparison    
 
 def score_metric(value, strong_threshold, weak_threshold, higher_is_better=True):
     if value is None:
@@ -261,6 +327,7 @@ def get_stock(ticker: str):
     liquidity = calculate_liquidity_ratios(balance_sheet)
     growth = calculate_growth_ratios(income)
     trends = calculate_historical_trends(income)
+    peer_comparison = get_peer_comparison(ticker)
 
     profitability_score = score_profitability(profitability)
     leverage_score = score_leverage(leverage)
@@ -275,6 +342,7 @@ def get_stock(ticker: str):
         "balance_sheet": balance_sheet,
         "cash_flow": cash_flow,
         "trends": trends,
+        "peer_comparison": peer_comparison,
         "ratios": {
             "profitability": profitability,
             "leverage": leverage,
