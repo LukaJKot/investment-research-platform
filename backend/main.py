@@ -140,6 +140,19 @@ def score_profitability(ratios):
         "roa": roa,
         "category_score": round(average_points, 2),
     }            
+
+def score_leverage(ratios):
+    debt_to_equity = score_metric(ratios["debt_to_equity"], strong_threshold=1.0, weak_threshold=2.0, higher_is_better=False)
+    interest_coverage = score_metric(ratios["interest_coverage"], strong_threshold=8, weak_threshold=3)
+
+    scores = [debt_to_equity, interest_coverage]
+    average_points = sum(s["points"] for s in scores) / len(scores)
+
+    return {
+        "debt_to_equity": debt_to_equity,
+        "interest_coverage": interest_coverage,
+        "category_score": round(average_points, 2),
+    }    
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
@@ -155,6 +168,7 @@ def get_stock(ticker: str):
     growth = calculate_growth_ratios(income)
 
     profitability_score = score_profitability(profitability)
+    leverage_score = score_leverage(leverage)
 
     return {
         "ticker": ticker,
@@ -169,5 +183,6 @@ def get_stock(ticker: str):
         },
         "scoring": {
             "profitability": profitability_score,
+            "leverage": leverage_score,
         },
     }
