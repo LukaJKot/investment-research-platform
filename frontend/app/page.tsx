@@ -108,6 +108,23 @@ function PeerTable({ ticker, overallScore, rating, peers }: { ticker: string; ov
   );
 }
 
+function MemoCard({ memo }: { memo: string }) {
+  const paragraphs = memo.split("\n").filter((p) => p.trim().length > 0);
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+      <h3 className="font-semibold text-gray-900 mb-3">Research Memo</h3>
+      <div className="space-y-3">
+        {paragraphs.map((p, i) => (
+          <p key={i} className="text-sm text-gray-700 leading-relaxed">{p}</p>
+        ))}
+      </div>
+      <p className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">
+        AI-generated summary of pre-calculated, rules-based data above. Not investment advice.
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   const [ticker, setTicker] = useState("");
   const [stockData, setStockData] = useState<any>(null);
@@ -243,6 +260,10 @@ export default function Home() {
                 rating={stockData.scoring.overall.rating}
                 peers={stockData.peer_comparison}
               />
+            )}
+
+            {stockData.memo && (
+              <MemoCard memo={stockData.memo} />
             )}
           </div>
         )}
