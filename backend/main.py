@@ -22,11 +22,29 @@ def get_income_statement(ticker: str):
     response = requests.get(url)
     return response.json()
 
+def get_balance_sheet(ticker: str):
+    url = f"https://financialmodelingprep.com/stable/balance-sheet-statement?symbol={ticker}&limit=1&apikey={FMP_API_KEY}"
+    response = requests.get(url)
+    return response.json()
+
+def get_cash_flow(ticker: str):
+    url = f"https://financialmodelingprep.com/stable/cash-flow-statement?symbol={ticker}&limit=1&apikey={FMP_API_KEY}"
+    response = requests.get(url)
+    return response.json()
+
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
 
 @app.get("/stock/{ticker}")
 def get_stock(ticker: str):
-    data = get_income_statement(ticker)
-    return data
+    income = get_income_statement(ticker)
+    balance_sheet = get_balance_sheet(ticker)
+    cash_flow = get_cash_flow(ticker)
+
+    return {
+        "ticker": ticker,
+        "income_statement": income,
+        "balance_sheet": balance_sheet,
+        "cash_flow": cash_flow,
+    }
