@@ -179,6 +179,30 @@ def score_growth(ratios):
         "net_income_growth": net_income_growth,
         "category_score": round(average_points, 2),
     }     
+
+def calculate_overall_score(profitability_score, leverage_score, liquidity_score, growth_score):
+    weighted_score = (
+        (profitability_score["category_score"] / 10) * 35 +
+        (growth_score["category_score"] / 10) * 25 +
+        (leverage_score["category_score"] / 10) * 25 +
+        (liquidity_score["category_score"] / 10) * 15
+    )
+
+    if weighted_score >= 85:
+        rating = "Excellent"
+    elif weighted_score >= 70:
+        rating = "Strong"
+    elif weighted_score >= 50:
+        rating = "Average"
+    elif weighted_score >= 30:
+        rating = "Weak"
+    else:
+        rating = "Poor"
+
+    return {
+        "overall_score": round(weighted_score, 2),
+        "rating": rating,
+    }    
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
@@ -197,6 +221,7 @@ def get_stock(ticker: str):
     leverage_score = score_leverage(leverage)
     liquidity_score = score_liquidity(liquidity)
     growth_score = score_growth(growth)
+    overall = calculate_overall_score(profitability_score, leverage_score, liquidity_score, growth_score)
 
     return {
         "ticker": ticker,
@@ -214,5 +239,6 @@ def get_stock(ticker: str):
             "leverage": leverage_score,
             "liquidity": liquidity_score,
             "growth": growth_score,
+            "overall": overall,
         },
     }
