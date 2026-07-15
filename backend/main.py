@@ -88,6 +88,23 @@ def calculate_liquidity_ratios(balance_sheet):
         "quick_ratio": round(quick_ratio, 4),
     }
 
+def calculate_growth_ratios(income_statement):
+    current = income_statement[0]
+    previous = income_statement[1]
+
+    current_revenue = current["revenue"]
+    previous_revenue = previous["revenue"]
+    current_net_income = current["netIncome"]
+    previous_net_income = previous["netIncome"]
+
+    revenue_growth = (current_revenue - previous_revenue) / previous_revenue
+    net_income_growth = (current_net_income - previous_net_income) / previous_net_income
+
+    return {
+        "revenue_growth": round(revenue_growth, 4),
+        "net_income_growth": round(net_income_growth, 4),
+    }
+
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
@@ -100,6 +117,7 @@ def get_stock(ticker: str):
     profitability = calculate_profitability_ratios(income, balance_sheet)
     leverage = calculate_leverage_ratios(income, balance_sheet)
     liquidity = calculate_liquidity_ratios(balance_sheet)
+    growth = calculate_growth_ratios(income)
 
     return {
         "ticker": ticker,
@@ -110,5 +128,6 @@ def get_stock(ticker: str):
             "profitability": profitability,
             "leverage": leverage,
             "liquidity": liquidity,
+            "growth": growth,
         },
     }
