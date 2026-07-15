@@ -133,6 +133,18 @@ def calculate_growth_ratios(income_statement):
         "net_income_growth": round(net_income_growth, 4),
     }
 
+def calculate_historical_trends(income_statement):
+    trends = []
+    for year_data in income_statement:
+        trends.append({
+            "fiscal_year": year_data["fiscalYear"],
+            "revenue": year_data["revenue"],
+            "net_income": year_data["netIncome"],
+            "gross_margin": round(year_data["grossProfit"] / year_data["revenue"], 4),
+        })
+    trends.reverse()
+    return trends
+
 def score_metric(value, strong_threshold, weak_threshold, higher_is_better=True):
     if value is None:
         return {"points": 5, "label": "Average"}
@@ -248,6 +260,7 @@ def get_stock(ticker: str):
     leverage = calculate_leverage_ratios(income, balance_sheet)
     liquidity = calculate_liquidity_ratios(balance_sheet)
     growth = calculate_growth_ratios(income)
+    trends = calculate_historical_trends(income)
 
     profitability_score = score_profitability(profitability)
     leverage_score = score_leverage(leverage)
@@ -261,6 +274,7 @@ def get_stock(ticker: str):
         "income_statement": income,
         "balance_sheet": balance_sheet,
         "cash_flow": cash_flow,
+        "trends": trends,
         "ratios": {
             "profitability": profitability,
             "leverage": leverage,
