@@ -152,7 +152,20 @@ def score_leverage(ratios):
         "debt_to_equity": debt_to_equity,
         "interest_coverage": interest_coverage,
         "category_score": round(average_points, 2),
-    }    
+    }
+
+def score_liquidity(ratios):
+    current_ratio = score_metric(ratios["current_ratio"], strong_threshold=2.0, weak_threshold=1.0)
+    quick_ratio = score_metric(ratios["quick_ratio"], strong_threshold=1.0, weak_threshold=0.5)
+
+    scores = [current_ratio, quick_ratio]
+    average_points = sum(s["points"] for s in scores) / len(scores)
+
+    return {
+        "current_ratio": current_ratio,
+        "quick_ratio": quick_ratio,
+        "category_score": round(average_points, 2),
+    }        
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
@@ -169,6 +182,7 @@ def get_stock(ticker: str):
 
     profitability_score = score_profitability(profitability)
     leverage_score = score_leverage(leverage)
+    liquidity_score = score_liquidity(liquidity)
 
     return {
         "ticker": ticker,
@@ -184,5 +198,6 @@ def get_stock(ticker: str):
         "scoring": {
             "profitability": profitability_score,
             "leverage": leverage_score,
+            "liquidity": liquidity_score,
         },
     }
