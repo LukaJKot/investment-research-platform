@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 import requests
+from google import genai
 
 load_dotenv()
 
@@ -16,6 +17,8 @@ app.add_middleware(
 )
 
 FMP_API_KEY = os.getenv("FMP_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 def get_income_statement(ticker: str):
     url = f"https://financialmodelingprep.com/stable/income-statement?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
@@ -211,6 +214,49 @@ def get_peer_comparison(ticker: str):
 
     return comparison    
 
+def generate_research_memo(ticker, ratios, scoring, trends, peer_comparison):
+    prompt = f"""You are a financial writing assistant. You will be given pre-calculated financial data for {ticker}. Your ONLY job is to explain and summarize this data in clear, professional prose, as if writing a short section of an equity research memo.
+
+STRICT RULES:
+- Do NOT calculate any new numbers or ratios.
+- Do NOT contradict, second-guess, or override the given overall rating or category scores.
+- Do NOT give personal investment advice or say whether someone should buy/sell.
+- Only reference the data provided below. Do not invent facts.
+- Keep it to 3-4 short paragraphs.
+
+DATA:
+Overall Score: {scoring['overall']['overall_score']}/100 ({scoring['overall']['rating']})
+
+Profitability (35% weight, category score {scoring['profitability']['category_score']}/10):
+- Gross Margin: {ratios['profitability']['gross_margin']} ({scoring['profitability']['gross_margin']['label']})
+- Net Margin: {ratios['profitability']['net_margin']} ({scoring['profitability']['net_margin']['label']})
+- ROE: {ratios['profitability']['roe']} ({scoring['profitability']['roe']['label']})
+- ROA: {ratios['profitability']['roa']} ({scoring['profitability']['roa']['label']})
+
+Leverage (25% weight, category score {scoring['leverage']['category_score']}/10):
+- Debt-to-Equity: {ratios['leverage']['debt_to_equity']} ({scoring['leverage']['debt_to_equity']['label']})
+- Interest Coverage: {ratios['leverage']['interest_coverage']} ({scoring['leverage']['interest_coverage']['label']})
+
+Liquidity (15% weight, category score {scoring['liquidity']['category_score']}/10):
+- Current Ratio: {ratios['liquidity']['current_ratio']} ({scoring['liquidity']['current_ratio']['label']})
+- Quick Ratio: {ratios['liquidity']['quick_ratio']} ({scoring['liquidity']['quick_ratio']['label']})
+
+Growth (25% weight, category score {scoring['growth']['category_score']}/10):
+- Revenue Growth YoY: {ratios['growth']['revenue_growth']} ({scoring['growth']['revenue_growth']['label']})
+- Net Income Growth YoY: {ratios['growth']['net_income_growth']} ({scoring['growth']['net_income_growth']['label']})
+
+5-Year Trend: {trends}
+
+Peer Comparison: {peer_comparison}
+
+Write the memo now."""
+
+    response = gemini_client.models.generate_content(
+        model="gemini-3.5-flash",
+        contents=prompt,
+    )
+    return response.text
+
 def score_metric(value, strong_threshold, weak_threshold, higher_is_better=True):
     if value is None:
         return {"points": 5, "label": "Average"}
@@ -335,6 +381,8 @@ def get_stock(ticker: str):
     growth_score = score_growth(growth)
 
     overall = calculate_overall_score(profitability_score, leverage_score, liquidity_score, growth_score)
+    memo = generate_research_memo(ticker, {"profitability": profitability, "leverage": leverage, "liquidity": liquidity, "growth": growth}, {"overall": overall, "profitability": profitability_score, "leverage": leverage_score, "liquidity": liquidity_score, "growth": growth_score}, trends, peer_comparison)
+
 
     return {
         "ticker": ticker,
@@ -356,4 +404,5 @@ def get_stock(ticker: str):
             "growth": growth_score,
             "overall": overall,
         },
+        "memo": memo,
     }
