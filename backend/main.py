@@ -105,6 +105,41 @@ def calculate_growth_ratios(income_statement):
         "net_income_growth": round(net_income_growth, 4),
     }
 
+def score_metric(value, strong_threshold, weak_threshold, higher_is_better=True):
+    if value is None:
+        return {"points": 5, "label": "Average"}
+
+    if higher_is_better:
+        if value >= strong_threshold:
+            return {"points": 10, "label": "Strong"}
+        elif value < weak_threshold:
+            return {"points": 0, "label": "Weak"}
+        else:
+            return {"points": 5, "label": "Average"}
+    else:
+        if value <= strong_threshold:
+            return {"points": 10, "label": "Strong"}
+        elif value > weak_threshold:
+            return {"points": 0, "label": "Weak"}
+        else:
+            return {"points": 5, "label": "Average"}
+
+def score_profitability(ratios):
+    gross_margin = score_metric(ratios["gross_margin"], strong_threshold=0.40, weak_threshold=0.20)
+    net_margin = score_metric(ratios["net_margin"], strong_threshold=0.15, weak_threshold=0.05)
+    roe = score_metric(ratios["roe"], strong_threshold=0.20, weak_threshold=0.10)
+    roa = score_metric(ratios["roa"], strong_threshold=0.08, weak_threshold=0.03)
+
+    scores = [gross_margin, net_margin, roe, roa]
+    average_points = sum(s["points"] for s in scores) / len(scores)
+
+    return {
+        "gross_margin": gross_margin,
+        "net_margin": net_margin,
+        "roe": roe,
+        "roa": roa,
+        "category_score": round(average_points, 2),
+    }            
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
@@ -119,6 +154,8 @@ def get_stock(ticker: str):
     liquidity = calculate_liquidity_ratios(balance_sheet)
     growth = calculate_growth_ratios(income)
 
+    profitability_score = score_profitability(profitability)
+
     return {
         "ticker": ticker,
         "income_statement": income,
@@ -129,5 +166,8 @@ def get_stock(ticker: str):
             "leverage": leverage,
             "liquidity": liquidity,
             "growth": growth,
+        },
+        "scoring": {
+            "profitability": profitability_score,
         },
     }
