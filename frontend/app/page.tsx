@@ -51,6 +51,63 @@ function CategoryCard({ title, weight, data, rows }: { title: string; weight: st
   );
 }
 
+function TrendsTable({ trends }: { trends: any[] }) {
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm mb-6">
+      <h3 className="font-semibold text-gray-900 mb-3">5-Year Trend</h3>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-400 border-b border-gray-200">
+            <th className="pb-2 font-medium">Year</th>
+            <th className="pb-2 font-medium text-right">Revenue</th>
+            <th className="pb-2 font-medium text-right">Net Income</th>
+            <th className="pb-2 font-medium text-right">Gross Margin</th>
+          </tr>
+        </thead>
+        <tbody>
+          {trends.map((row) => (
+            <tr key={row.fiscal_year} className="border-b border-gray-50 last:border-0">
+              <td className="py-2 text-gray-600">{row.fiscal_year}</td>
+              <td className="py-2 text-right">${(row.revenue / 1e9).toFixed(1)}B</td>
+              <td className="py-2 text-right">${(row.net_income / 1e9).toFixed(1)}B</td>
+              <td className="py-2 text-right">{(row.gross_margin * 100).toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PeerTable({ ticker, overallScore, rating, peers }: { ticker: string; overallScore: number; rating: string; peers: any[] }) {
+  const rows = [{ ticker, overall_score: overallScore, rating, isTarget: true }, ...peers.map((p) => ({ ...p, isTarget: false }))];
+  rows.sort((a, b) => b.overall_score - a.overall_score);
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm mb-6">
+      <h3 className="font-semibold text-gray-900 mb-3">Peer Comparison</h3>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-400 border-b border-gray-200">
+            <th className="pb-2 font-medium">Ticker</th>
+            <th className="pb-2 font-medium text-right">Score</th>
+            <th className="pb-2 font-medium text-right">Rating</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.ticker} className={`border-b border-gray-50 last:border-0 ${row.isTarget ? "bg-blue-50 font-semibold" : ""}`}>
+              <td className="py-2">{row.ticker}{row.isTarget && <span className="text-xs text-blue-500 ml-1">(this company)</span>}</td>
+              <td className="py-2 text-right">{row.overall_score}</td>
+              <td className={`py-2 text-right ${ratingColor(row.rating)}`}>{row.rating}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function Home() {
   const [ticker, setTicker] = useState("");
   const [stockData, setStockData] = useState<any>(null);
@@ -116,7 +173,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <CategoryCard
                 title="Profitability"
                 weight="35%"
@@ -174,6 +231,19 @@ export default function Home() {
                 ]}
               />
             </div>
+
+            {stockData.trends && stockData.trends.length > 0 && (
+              <TrendsTable trends={stockData.trends} />
+            )}
+
+            {stockData.peer_comparison && stockData.peer_comparison.length > 0 && (
+              <PeerTable
+                ticker={stockData.ticker}
+                overallScore={stockData.scoring.overall.overall_score}
+                rating={stockData.scoring.overall.rating}
+                peers={stockData.peer_comparison}
+              />
+            )}
           </div>
         )}
       </div>
