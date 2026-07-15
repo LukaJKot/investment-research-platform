@@ -20,29 +20,51 @@ FMP_API_KEY = os.getenv("FMP_API_KEY")
 def get_income_statement(ticker: str):
     url = f"https://financialmodelingprep.com/stable/income-statement?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
     response = requests.get(url)
-    return response.json()
+    try:
+        data = response.json()
+    except ValueError:
+        return None
+    if isinstance(data, dict):
+        return None
+    return data
 
 def get_balance_sheet(ticker: str):
     url = f"https://financialmodelingprep.com/stable/balance-sheet-statement?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
     response = requests.get(url)
-    return response.json()
+    try:
+        data = response.json()
+    except ValueError:
+        return None
+    if isinstance(data, dict):
+        return None
+    return data
 
 def get_cash_flow(ticker: str):
     url = f"https://financialmodelingprep.com/stable/cash-flow-statement?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
     response = requests.get(url)
-    return response.json()
+    try:
+        data = response.json()
+    except ValueError:
+        return None
+    if isinstance(data, dict):
+        return None
+    return data
 
 def calculate_profitability_ratios(income_statement, balance_sheet):
     income = income_statement[0]
     balance_current = balance_sheet[0]
-    balance_previous = balance_sheet[1]
 
     revenue = income["revenue"]
     net_income = income["netIncome"]
     gross_profit = income["grossProfit"]
 
-    avg_equity = (balance_current["totalStockholdersEquity"] + balance_previous["totalStockholdersEquity"]) / 2
-    avg_assets = (balance_current["totalAssets"] + balance_previous["totalAssets"]) / 2
+    if len(balance_sheet) >= 2:
+        balance_previous = balance_sheet[1]
+        avg_equity = (balance_current["totalStockholdersEquity"] + balance_previous["totalStockholdersEquity"]) / 2
+        avg_assets = (balance_current["totalAssets"] + balance_previous["totalAssets"]) / 2
+    else:
+        avg_equity = balance_current["totalStockholdersEquity"]
+        avg_assets = balance_current["totalAssets"]
 
     gross_margin = gross_profit / revenue
     net_margin = net_income / revenue
@@ -89,6 +111,12 @@ def calculate_liquidity_ratios(balance_sheet):
     }
 
 def calculate_growth_ratios(income_statement):
+    if len(income_statement) < 2:
+        return {
+            "revenue_growth": None,
+            "net_income_growth": None,
+        }
+
     current = income_statement[0]
     previous = income_statement[1]
 
@@ -212,6 +240,10 @@ def get_stock(ticker: str):
     income = get_income_statement(ticker)
     balance_sheet = get_balance_sheet(ticker)
     cash_flow = get_cash_flow(ticker)
+
+    if income is None or balance_sheet is None or cash_flow is None:
+        return {"error": f"No data available for ticker '{ticker}'. It may not be covered by our data provider."}
+
     profitability = calculate_profitability_ratios(income, balance_sheet)
     leverage = calculate_leverage_ratios(income, balance_sheet)
     liquidity = calculate_liquidity_ratios(balance_sheet)
@@ -221,6 +253,7 @@ def get_stock(ticker: str):
     leverage_score = score_leverage(leverage)
     liquidity_score = score_liquidity(liquidity)
     growth_score = score_growth(growth)
+
     overall = calculate_overall_score(profitability_score, leverage_score, liquidity_score, growth_score)
 
     return {
