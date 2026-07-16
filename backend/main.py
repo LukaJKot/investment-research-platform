@@ -11,7 +11,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[*],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -259,7 +259,7 @@ Write the memo now."""
         return response.text
     except Exception:
         return "The AI research memo is temporarily unavailable due to high demand on our AI provider's servers. All scores and ratios above are unaffected and fully accurate — please try refreshing in a moment to generate the memo."
-        
+
 
 def score_metric(value, strong_threshold, weak_threshold, higher_is_better=True):
     if value is None:

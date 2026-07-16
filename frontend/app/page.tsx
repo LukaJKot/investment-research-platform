@@ -134,7 +134,7 @@ export default function Home() {
     if (!ticker) return;
     setLoading(true);
     setStockData(null);
-    const response = await fetch(`http://127.0.0.1:8000/stock/${ticker}`);
+    const response = await fetch(`https://investment-research-api.onrender.com/stock/${ticker}`);
     const data = await response.json();
     setStockData(data);
     setLoading(false);
