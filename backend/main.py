@@ -251,11 +251,15 @@ Peer Comparison: {peer_comparison}
 
 Write the memo now."""
 
-    response = gemini_client.models.generate_content(
-        model="gemini-3.5-flash",
-        contents=prompt,
-    )
-    return response.text
+    try:
+        response = gemini_client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=prompt,
+        )
+        return response.text
+    except Exception:
+        return "The AI research memo is temporarily unavailable due to high demand on our AI provider's servers. All scores and ratios above are unaffected and fully accurate — please try refreshing in a moment to generate the memo."
+        
 
 def score_metric(value, strong_threshold, weak_threshold, higher_is_better=True):
     if value is None:
