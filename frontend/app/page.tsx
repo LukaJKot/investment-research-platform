@@ -3,23 +3,23 @@
 import { useState } from "react";
 
 function labelColor(label: string) {
-  if (label === "Strong") return "text-green-600 bg-green-50";
-  if (label === "Average") return "text-yellow-600 bg-yellow-50";
-  return "text-red-600 bg-red-50";
+  if (label === "Strong") return "text-green-700 bg-green-50";
+  if (label === "Average") return "text-yellow-700 bg-yellow-50";
+  return "text-red-700 bg-red-50";
 }
 
 function ratingColor(rating: string) {
-  if (rating === "Excellent" || rating === "Strong") return "text-green-600";
-  if (rating === "Average") return "text-yellow-600";
-  return "text-red-600";
+  if (rating === "Excellent" || rating === "Strong") return "text-green-700";
+  if (rating === "Average") return "text-yellow-700";
+  return "text-red-700";
 }
 
 function RatioRow({ name, value, label }: { name: string; value: string; label: string }) {
   return (
     <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-      <span className="text-sm text-gray-600">{name}</span>
+      <span className="text-sm text-gray-700">{name}</span>
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">{value}</span>
+        <span className="text-sm font-semibold text-gray-900">{value}</span>
         <span className={`text-xs font-semibold px-2 py-0.5 rounded ${labelColor(label)}`}>
           {label}
         </span>
@@ -33,7 +33,7 @@ function CategoryCard({ title, weight, data, rows }: { title: string; weight: st
     <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-gray-900">{title}</h3>
-        <span className="text-xs text-gray-400">{weight} of score</span>
+        <span className="text-xs text-gray-600">{weight} of score</span>
       </div>
       {rows.map((row) => (
         <RatioRow
@@ -44,8 +44,8 @@ function CategoryCard({ title, weight, data, rows }: { title: string; weight: st
         />
       ))}
       <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
-        <span className="text-sm font-medium text-gray-500">Category Score</span>
-        <span className="text-sm font-bold">{data.category_score} / 10</span>
+        <span className="text-sm font-medium text-gray-700">Category Score</span>
+        <span className="text-sm font-bold text-gray-900">{data.category_score} / 10</span>
       </div>
     </div>
   );
@@ -57,7 +57,7 @@ function TrendsTable({ trends }: { trends: any[] }) {
       <h3 className="font-semibold text-gray-900 mb-3">5-Year Trend</h3>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-400 border-b border-gray-200">
+          <tr className="text-left text-gray-600 border-b border-gray-200">
             <th className="pb-2 font-medium">Year</th>
             <th className="pb-2 font-medium text-right">Revenue</th>
             <th className="pb-2 font-medium text-right">Net Income</th>
@@ -67,10 +67,10 @@ function TrendsTable({ trends }: { trends: any[] }) {
         <tbody>
           {trends.map((row) => (
             <tr key={row.fiscal_year} className="border-b border-gray-50 last:border-0">
-              <td className="py-2 text-gray-600">{row.fiscal_year}</td>
-              <td className="py-2 text-right">${(row.revenue / 1e9).toFixed(1)}B</td>
-              <td className="py-2 text-right">${(row.net_income / 1e9).toFixed(1)}B</td>
-              <td className="py-2 text-right">{(row.gross_margin * 100).toFixed(1)}%</td>
+              <td className="py-2 text-gray-800 font-medium">{row.fiscal_year}</td>
+              <td className="py-2 text-right text-gray-900">${(row.revenue / 1e9).toFixed(1)}B</td>
+              <td className="py-2 text-right text-gray-900">${(row.net_income / 1e9).toFixed(1)}B</td>
+              <td className="py-2 text-right text-gray-900">{(row.gross_margin * 100).toFixed(1)}%</td>
             </tr>
           ))}
         </tbody>
@@ -88,7 +88,7 @@ function PeerTable({ ticker, overallScore, rating, peers }: { ticker: string; ov
       <h3 className="font-semibold text-gray-900 mb-3">Peer Comparison</h3>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-400 border-b border-gray-200">
+          <tr className="text-left text-gray-600 border-b border-gray-200">
             <th className="pb-2 font-medium">Ticker</th>
             <th className="pb-2 font-medium text-right">Score</th>
             <th className="pb-2 font-medium text-right">Rating</th>
@@ -97,9 +97,9 @@ function PeerTable({ ticker, overallScore, rating, peers }: { ticker: string; ov
         <tbody>
           {rows.map((row) => (
             <tr key={row.ticker} className={`border-b border-gray-50 last:border-0 ${row.isTarget ? "bg-blue-50 font-semibold" : ""}`}>
-              <td className="py-2">{row.ticker}{row.isTarget && <span className="text-xs text-blue-500 ml-1">(this company)</span>}</td>
-              <td className="py-2 text-right">{row.overall_score}</td>
-              <td className={`py-2 text-right ${ratingColor(row.rating)}`}>{row.rating}</td>
+              <td className="py-2 text-gray-900">{row.ticker}{row.isTarget && <span className="text-xs text-blue-600 ml-1">(this company)</span>}</td>
+              <td className="py-2 text-right text-gray-900">{row.overall_score}</td>
+              <td className={`py-2 text-right font-medium ${ratingColor(row.rating)}`}>{row.rating}</td>
             </tr>
           ))}
         </tbody>
@@ -115,10 +115,10 @@ function MemoCard({ memo }: { memo: string }) {
       <h3 className="font-semibold text-gray-900 mb-3">Research Memo</h3>
       <div className="space-y-3">
         {paragraphs.map((p, i) => (
-          <p key={i} className="text-sm text-gray-700 leading-relaxed">{p}</p>
+          <p key={i} className="text-sm text-gray-800 leading-relaxed">{p}</p>
         ))}
       </div>
-      <p className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">
+      <p className="text-xs text-gray-600 mt-4 pt-3 border-t border-gray-100">
         AI-generated summary of pre-calculated, rules-based data above. Not investment advice.
       </p>
     </div>
@@ -148,7 +148,7 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 px-6 py-10">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Investment Research Platform</h1>
-        <p className="text-gray-500 text-sm mb-6">Rules-based fundamental analysis for any public stock</p>
+        <p className="text-gray-700 text-sm mb-6">Rules-based fundamental analysis for any public stock</p>
 
         <div className="flex gap-2 mb-8">
           <input
@@ -157,7 +157,7 @@ export default function Home() {
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             placeholder="Enter ticker (e.g. AAPL)"
-            className="flex-1 border border-gray-300 rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 border border-gray-300 rounded-md px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             onClick={handleSearch}
@@ -167,10 +167,10 @@ export default function Home() {
           </button>
         </div>
 
-        {loading && <p className="text-gray-500">Loading...</p>}
+        {loading && <p className="text-gray-700">Loading...</p>}
 
         {stockData && stockData.error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 text-sm">
+          <div className="bg-red-50 border border-red-200 text-red-800 rounded-md px-4 py-3 text-sm">
             {stockData.error}
           </div>
         )}
@@ -179,14 +179,14 @@ export default function Home() {
           <div>
             <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6 flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">{stockData.ticker}</p>
+                <p className="text-gray-700 text-sm font-medium">{stockData.ticker}</p>
                 <p className={`text-4xl font-bold ${ratingColor(stockData.scoring.overall.rating)}`}>
                   {stockData.scoring.overall.rating}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-gray-500 text-sm">Overall Score</p>
-                <p className="text-4xl font-bold text-gray-900">{stockData.scoring.overall.overall_score}<span className="text-lg text-gray-400">/100</span></p>
+                <p className="text-gray-700 text-sm font-medium">Overall Score</p>
+                <p className="text-4xl font-bold text-gray-900">{stockData.scoring.overall.overall_score}<span className="text-lg text-gray-600">/100</span></p>
               </div>
             </div>
 
