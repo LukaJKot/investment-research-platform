@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 import requests
 from google import genai
+import yfinance as yf
 
 load_dotenv()
 
@@ -30,6 +31,75 @@ def get_income_statement(ticker: str):
     if isinstance(data, dict):
         return None
     return data
+
+def get_income_statement_yfinance(ticker: str):
+    stock = yf.Ticker(ticker)
+    df = stock.financials
+    if df.empty:
+        return None
+
+    years = []
+    for col in df.columns:
+        try:
+            revenue = df.loc["Total Revenue", col]
+            net_income = df.loc["Net Income", col]
+            gross_profit = df.loc["Gross Profit", col]
+            ebit = df.loc["EBIT", col]
+        except KeyError:
+            continue
+
+        years.append({
+            "fiscalYear": str(col.year),
+            "revenue": float(revenue),
+            "netIncome": float(net_income),
+            "grossProfit": float(gross_profit),
+            "ebit": float(ebit),
+            "interestExpense": 0,
+        })
+
+    return years if years else None
+
+def get_balance_sheet_yfinance(ticker: str):
+    stock = yf.Ticker(ticker)
+    df = stock.balance_sheet
+    if df.empty:
+        return None
+
+    import pandas as pd
+
+    years = []
+    for col in df.columns:
+        try:
+            total_assets = df.loc["Total Assets", col]
+            total_equity = df.loc["Stockholders Equity", col]
+            current_assets = df.loc["Current Assets", col]
+            current_liabilities = df.loc["Current Liabilities", col]
+            total_debt = df.loc["Total Debt", col]
+            inventory = df.loc["Inventory", col] if "Inventory" in df.index else 0
+        except KeyError:
+            continue
+
+        if pd.isna(total_assets) or pd.isna(total_equity) or pd.isna(current_assets) or pd.isna(current_liabilities) or pd.isna(total_debt):
+            continue
+
+        years.append({
+            "fiscalYear": str(col.year),
+            "totalAssets": float(total_assets),
+            "totalStockholdersEquity": float(total_equity),
+            "totalCurrentAssets": float(current_assets),
+            "totalCurrentLiabilities": float(current_liabilities),
+            "totalDebt": float(total_debt),
+            "inventory": float(inventory) if inventory and not pd.isna(inventory) else 0,
+        })
+
+    return years if years else None
+
+def get_cash_flow_yfinance(ticker: str):
+    stock = yf.Ticker(ticker)
+    df = stock.cashflow
+    if df.empty:
+        return None
+    return []            
 
 def get_balance_sheet(ticker: str):
     url = f"https://financialmodelingprep.com/stable/balance-sheet-statement?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
@@ -363,15 +433,23 @@ def calculate_overall_score(profitability_score, leverage_score, liquidity_score
 def read_root():
     return {"message": "Hello from your backend!"}
 
+
 @app.get("/stock/{ticker}")
 def get_stock(ticker: str):
     income = get_income_statement(ticker)
     balance_sheet = get_balance_sheet(ticker)
     cash_flow = get_cash_flow(ticker)
+    data_source = "FMP"
 
     if income is None or balance_sheet is None or cash_flow is None:
-        return {"error": f"No data available for ticker '{ticker}'. It may not be covered by our data provider."}
+        income = get_income_statement_yfinance(ticker)
+        balance_sheet = get_balance_sheet_yfinance(ticker)
+        cash_flow = get_cash_flow_yfinance(ticker)
+        data_source = "Yahoo Finance"
 
+    if income is None or balance_sheet is None or cash_flow is None:
+        return {"error": f"No data available for ticker '{ticker}'. It may not be covered by our data providers."}
+        
     profitability = calculate_profitability_ratios(income, balance_sheet)
     leverage = calculate_leverage_ratios(income, balance_sheet)
     liquidity = calculate_liquidity_ratios(balance_sheet)
@@ -390,6 +468,7 @@ def get_stock(ticker: str):
 
     return {
         "ticker": ticker,
+        "data_source": data_source,
         "income_statement": income,
         "balance_sheet": balance_sheet,
         "cash_flow": cash_flow,
