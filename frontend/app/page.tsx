@@ -178,17 +178,24 @@ export default function Home() {
         {stockData && !stockData.error && (
           <div>
             <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-gray-700 text-sm font-medium">{stockData.ticker}</p>
-                <p className={`text-4xl font-bold ${ratingColor(stockData.scoring.overall.rating)}`}>
-                  {stockData.scoring.overall.rating}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-gray-700 text-sm font-medium">Overall Score</p>
-                <p className="text-4xl font-bold text-gray-900">{stockData.scoring.overall.overall_score}<span className="text-lg text-gray-600">/100</span></p>
-              </div>
-            </div>
+  <div>
+    <div className="flex items-center gap-2">
+      <p className="text-gray-700 text-sm font-medium">{stockData.ticker}</p>
+      {stockData.data_source && stockData.data_source !== "FMP" && (
+        <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+          via {stockData.data_source}
+        </span>
+      )}
+    </div>
+    <p className={`text-4xl font-bold ${ratingColor(stockData.scoring.overall.rating)}`}>
+      {stockData.scoring.overall.rating}
+    </p>
+  </div>
+  <div className="text-right">
+    <p className="text-gray-700 text-sm font-medium">Overall Score</p>
+    <p className="text-4xl font-bold text-gray-900">{stockData.scoring.overall.overall_score}<span className="text-lg text-gray-600">/100</span></p>
+  </div>
+</div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <CategoryCard
