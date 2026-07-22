@@ -244,11 +244,14 @@ def calculate_growth_ratios(income_statement):
 def calculate_historical_trends(income_statement):
     trends = []
     for year_data in income_statement:
+        revenue = year_data["revenue"]
+        gross_margin = round(year_data["grossProfit"] / revenue, 4) if revenue != 0 else None
+
         trends.append({
             "fiscal_year": year_data["fiscalYear"],
-            "revenue": year_data["revenue"],
+            "revenue": revenue,
             "net_income": year_data["netIncome"],
-            "gross_margin": round(year_data["grossProfit"] / year_data["revenue"], 4),
+            "gross_margin": gross_margin,
         })
     trends.reverse()
     return trends
