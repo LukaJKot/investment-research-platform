@@ -196,7 +196,13 @@ export default function Home() {
     <p className="text-4xl font-bold text-gray-900">{stockData.scoring.overall.overall_score}<span className="text-lg text-gray-600">/100</span></p>
   </div>
 </div>
-
+{stockData.data_notes && stockData.data_notes.length > 0 && (
+  <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md px-4 py-3 text-sm mb-6">
+    {stockData.data_notes.map((note: string, i: number) => (
+      <p key={i}>{note}</p>
+    ))}
+  </div>
+)}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <CategoryCard
                 title="Profitability"

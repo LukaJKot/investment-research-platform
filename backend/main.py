@@ -36,21 +36,24 @@ def get_income_statement_yfinance(ticker: str):
     stock = yf.Ticker(ticker)
     df = stock.financials
     if df.empty:
-        return None
+        return None, False
 
     import pandas as pd
+
+    used_substitute = "Gross Profit" not in df.index or "EBIT" not in df.index
 
     years = []
     for col in df.columns:
         try:
             revenue = df.loc["Total Revenue", col]
             net_income = df.loc["Net Income", col]
-            gross_profit = df.loc["Gross Profit", col]
-            ebit = df.loc["EBIT", col]
         except KeyError:
             continue
 
-        if pd.isna(revenue) or pd.isna(net_income) or pd.isna(gross_profit) or pd.isna(ebit):
+        gross_profit = df.loc["Gross Profit", col] if "Gross Profit" in df.index else revenue
+        ebit = df.loc["EBIT", col] if "EBIT" in df.index else (df.loc["Pretax Income", col] if "Pretax Income" in df.index else None)
+
+        if pd.isna(revenue) or pd.isna(net_income) or pd.isna(gross_profit) or ebit is None or pd.isna(ebit):
             continue
 
         years.append({
@@ -62,7 +65,7 @@ def get_income_statement_yfinance(ticker: str):
             "interestExpense": 0,
         })
 
-    return years if years else None
+    return (years if years else None), used_substitute
 
 def get_balance_sheet_yfinance(ticker: str):
     stock = yf.Ticker(ticker)
@@ -441,6 +444,12 @@ def calculate_overall_score(profitability_score, leverage_score, liquidity_score
 def read_root():
     return {"message": "Hello from your backend!"}
 
+@app.get("/test-yfinance/{ticker}")
+def test_yfinance(ticker: str):
+    stock = yf.Ticker(ticker)
+    income = stock.financials
+    return {"columns": income.columns.astype(str).tolist(), "index": income.index.tolist()}    
+
 
 @app.get("/stock/{ticker}")
 def get_stock(ticker: str):
@@ -450,10 +459,12 @@ def get_stock(ticker: str):
     data_source = "FMP"
 
     if income is None or balance_sheet is None or cash_flow is None:
-        income = get_income_statement_yfinance(ticker)
+        income, used_substitute = get_income_statement_yfinance(ticker)
         balance_sheet = get_balance_sheet_yfinance(ticker)
         cash_flow = get_cash_flow_yfinance(ticker)
         data_source = "Yahoo Finance"
+    else:
+        used_substitute = False
 
     if income is None or balance_sheet is None or cash_flow is None:
         return {"error": f"No data available for ticker '{ticker}'. It may not be covered by our data providers."}
@@ -477,6 +488,8 @@ def get_stock(ticker: str):
     return {
         "ticker": ticker,
         "data_source": data_source,
+        "data_notes": ["Gross margin and EBIT-based figures use revenue/pretax income as substitutes, since this company's financial statements don't report them separately (common for financial institutions)."] if used_substitute else [],
+        
         "income_statement": income,
         "balance_sheet": balance_sheet,
         "cash_flow": cash_flow,
