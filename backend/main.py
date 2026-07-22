@@ -174,16 +174,16 @@ def calculate_profitability_ratios(income_statement, balance_sheet):
         avg_equity = balance_current["totalStockholdersEquity"]
         avg_assets = balance_current["totalAssets"]
 
-    gross_margin = gross_profit / revenue
-    net_margin = net_income / revenue
-    roe = net_income / avg_equity
-    roa = net_income / avg_assets
+    gross_margin = round(gross_profit / revenue, 4) if revenue != 0 else None
+    net_margin = round(net_income / revenue, 4) if revenue != 0 else None
+    roe = round(net_income / avg_equity, 4) if avg_equity != 0 else None
+    roa = round(net_income / avg_assets, 4) if avg_assets != 0 else None
 
     return {
-        "gross_margin": round(gross_margin, 4),
-        "net_margin": round(net_margin, 4),
-        "roe": round(roe, 4),
-        "roa": round(roa, 4),
+        "gross_margin": gross_margin,
+        "net_margin": net_margin,
+        "roe": roe,
+        "roa": roa,
     }
 
 def calculate_leverage_ratios(income_statement, balance_sheet):
@@ -195,12 +195,12 @@ def calculate_leverage_ratios(income_statement, balance_sheet):
     ebit = income["ebit"]
     interest_expense = income["interestExpense"]
 
-    debt_to_equity = total_debt / total_equity
-    interest_coverage = ebit / interest_expense if interest_expense != 0 else None
+    debt_to_equity = round(total_debt / total_equity, 4) if total_equity != 0 else None
+    interest_coverage = round(ebit / interest_expense, 4) if interest_expense != 0 else None
 
     return {
-        "debt_to_equity": round(debt_to_equity, 4),
-        "interest_coverage": round(interest_coverage, 4) if interest_coverage is not None else None,
+        "debt_to_equity": debt_to_equity,
+        "interest_coverage": interest_coverage,
     }
 
 def calculate_liquidity_ratios(balance_sheet):
@@ -210,12 +210,12 @@ def calculate_liquidity_ratios(balance_sheet):
     current_liabilities = balance["totalCurrentLiabilities"]
     inventory = balance["inventory"]
 
-    current_ratio = current_assets / current_liabilities
-    quick_ratio = (current_assets - inventory) / current_liabilities
+    current_ratio = round(current_assets / current_liabilities, 4) if current_liabilities != 0 else None
+    quick_ratio = round((current_assets - inventory) / current_liabilities, 4) if current_liabilities != 0 else None
 
     return {
-        "current_ratio": round(current_ratio, 4),
-        "quick_ratio": round(quick_ratio, 4),
+        "current_ratio": current_ratio,
+        "quick_ratio": quick_ratio,
     }
 
 def calculate_growth_ratios(income_statement):
