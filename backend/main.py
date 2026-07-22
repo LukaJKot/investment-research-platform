@@ -449,18 +449,7 @@ def calculate_overall_score(profitability_score, leverage_score, liquidity_score
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
-
-@app.get("/test-yfinance/{ticker}")
-def test_yfinance(ticker: str):
-    stock = yf.Ticker(ticker)
-    income = stock.financials
-    return {"columns": income.columns.astype(str).tolist(), "index": income.index.tolist()}    
-
-@app.get("/test-yfinance-balance/{ticker}")
-def test_yfinance_balance(ticker: str):
-    stock = yf.Ticker(ticker)
-    balance = stock.balance_sheet
-    return {"columns": balance.columns.astype(str).tolist(), "index": balance.index.tolist()}    
+  
 
 
 @app.get("/stock/{ticker}")
