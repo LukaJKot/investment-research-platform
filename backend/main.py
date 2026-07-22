@@ -75,27 +75,30 @@ def get_balance_sheet_yfinance(ticker: str):
 
     import pandas as pd
 
+    has_current_data = "Current Assets" in df.index and "Current Liabilities" in df.index
+
     years = []
     for col in df.columns:
         try:
             total_assets = df.loc["Total Assets", col]
             total_equity = df.loc["Stockholders Equity", col]
-            current_assets = df.loc["Current Assets", col]
-            current_liabilities = df.loc["Current Liabilities", col]
             total_debt = df.loc["Total Debt", col]
-            inventory = df.loc["Inventory", col] if "Inventory" in df.index else 0
         except KeyError:
             continue
 
-        if pd.isna(total_assets) or pd.isna(total_equity) or pd.isna(current_assets) or pd.isna(current_liabilities) or pd.isna(total_debt):
+        current_assets = df.loc["Current Assets", col] if has_current_data else None
+        current_liabilities = df.loc["Current Liabilities", col] if has_current_data else None
+        inventory = df.loc["Inventory", col] if "Inventory" in df.index else 0
+
+        if pd.isna(total_assets) or pd.isna(total_equity) or pd.isna(total_debt):
             continue
 
         years.append({
             "fiscalYear": str(col.year),
             "totalAssets": float(total_assets),
             "totalStockholdersEquity": float(total_equity),
-            "totalCurrentAssets": float(current_assets),
-            "totalCurrentLiabilities": float(current_liabilities),
+            "totalCurrentAssets": float(current_assets) if current_assets is not None and not pd.isna(current_assets) else None,
+            "totalCurrentLiabilities": float(current_liabilities) if current_liabilities is not None and not pd.isna(current_liabilities) else None,
             "totalDebt": float(total_debt),
             "inventory": float(inventory) if inventory and not pd.isna(inventory) else 0,
         })
@@ -213,8 +216,11 @@ def calculate_liquidity_ratios(balance_sheet):
     current_liabilities = balance["totalCurrentLiabilities"]
     inventory = balance["inventory"]
 
-    current_ratio = round(current_assets / current_liabilities, 4) if current_liabilities != 0 else None
-    quick_ratio = round((current_assets - inventory) / current_liabilities, 4) if current_liabilities != 0 else None
+    if current_assets is None or current_liabilities is None or current_liabilities == 0:
+        return {"current_ratio": None, "quick_ratio": None}
+
+    current_ratio = round(current_assets / current_liabilities, 4)
+    quick_ratio = round((current_assets - inventory) / current_liabilities, 4)
 
     return {
         "current_ratio": current_ratio,
@@ -450,6 +456,12 @@ def test_yfinance(ticker: str):
     income = stock.financials
     return {"columns": income.columns.astype(str).tolist(), "index": income.index.tolist()}    
 
+@app.get("/test-yfinance-balance/{ticker}")
+def test_yfinance_balance(ticker: str):
+    stock = yf.Ticker(ticker)
+    balance = stock.balance_sheet
+    return {"columns": balance.columns.astype(str).tolist(), "index": balance.index.tolist()}    
+
 
 @app.get("/stock/{ticker}")
 def get_stock(ticker: str):
@@ -489,7 +501,7 @@ def get_stock(ticker: str):
         "ticker": ticker,
         "data_source": data_source,
         "data_notes": ["Gross margin and EBIT-based figures use revenue/pretax income as substitutes, since this company's financial statements don't report them separately (common for financial institutions)."] if used_substitute else [],
-        
+
         "income_statement": income,
         "balance_sheet": balance_sheet,
         "cash_flow": cash_flow,
