@@ -21,6 +21,12 @@ FMP_API_KEY = os.getenv("FMP_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
+MARKETAUX_API_KEY = os.getenv("MARKETAUX_API_KEY")
+
+@app.get("/test-news/{ticker}")
+def test_news(ticker: str):
+    return get_news_sentiment(ticker)
+    
 def get_income_statement(ticker: str):
     url = f"https://financialmodelingprep.com/stable/income-statement?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
     response = requests.get(url)
@@ -299,17 +305,49 @@ def get_peer_comparison(ticker: str):
             "rating": peer_overall["rating"],
         })
 
-    return comparison    
+    return comparison
 
-def generate_research_memo(ticker, ratios, scoring, trends, peer_comparison):
-    prompt = f"""You are a financial writing assistant. You will be given pre-calculated financial data for {ticker}. Your ONLY job is to explain and summarize this data in clear, professional prose, as if writing a short section of an equity research memo.
+def get_news_articles(ticker: str):
+    url = f"https://api.marketaux.com/v1/news/all?symbols={ticker}&filter_entities=true&language=en&limit=15&api_token={MARKETAUX_API_KEY}"
+    try:
+        response = requests.get(url)
+        data = response.json()
+    except ValueError:
+        return []
+
+    if "data" not in data:
+        return []
+
+    articles = []
+    for article in data["data"]:
+        entity = next((e for e in article["entities"] if e["symbol"] == ticker), None)
+        if entity is None or entity["match_score"] < 20:
+            continue
+        articles.append({
+            "title": article["title"],
+            "description": article["description"],
+            "url": article["url"],
+            "source": article["source"],
+        })
+    return articles       
+
+import json
+import time
+
+def generate_research_memo(ticker, ratios, scoring, trends, peer_comparison, articles):
+    articles_text = "\n".join(
+        [f'- "{a["title"]}" ({a["source"]}): {a["description"]}' for a in articles]
+    ) if articles else "No recent news articles available."
+
+    prompt = f"""You are a financial writing assistant. You will be given pre-calculated financial data for {ticker}, plus recent news headlines. Respond ONLY with valid JSON — no markdown formatting, no code fences, no preamble text.
 
 STRICT RULES:
 - Do NOT calculate any new numbers or ratios.
 - Do NOT contradict, second-guess, or override the given overall rating or category scores.
 - Do NOT give personal investment advice or say whether someone should buy/sell.
-- Only reference the data provided below. Do not invent facts.
-- Keep it to 3-4 short paragraphs.
+- Only reference the data and articles provided below. Do not invent facts.
+- For bullish_themes and bearish_themes: judge each headline by what it actually argues, not just its tone. An article using positive language but concluding "Sell" is bearish, not bullish.
+- Keep the memo to 3-4 short paragraphs. Keep each theme to 1-2 sentences.
 
 DATA:
 Overall Score: {scoring['overall']['overall_score']}/100 ({scoring['overall']['rating']})
@@ -336,17 +374,37 @@ Growth (25% weight, category score {scoring['growth']['category_score']}/10):
 
 Peer Comparison: {peer_comparison}
 
-Write the memo now."""
+RECENT NEWS:
+{articles_text}
 
-    try:
-        response = gemini_client.models.generate_content(
-            model="gemini-3.5-flash",
-            contents=prompt,
-        )
-        return response.text
-    except Exception:
-        return "The AI research memo is temporarily unavailable due to high demand on our AI provider's servers. All scores and ratios above are unaffected and fully accurate — please try refreshing in a moment to generate the memo."
+Respond with exactly this JSON structure:
+{{
+  "memo": "3-4 paragraph research memo as a single string",
+  "bullish_themes": [{{"theme": "short summary", "sources": ["source1"]}}],
+  "bearish_themes": [{{"theme": "short summary", "sources": ["source1"]}}]
+}}"""
 
+    for attempt in range(2):
+        try:
+            response = gemini_client.models.generate_content(
+                model="gemini-3.5-flash",
+                contents=prompt,
+            )
+            text = response.text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+            return json.loads(text)
+        except Exception:
+            if attempt == 0:
+                time.sleep(3)
+                continue
+            return {
+                "memo": "The AI research memo and sentiment analysis are temporarily unavailable due to high demand on our AI provider's servers. All scores and ratios above are unaffected and fully accurate — please try refreshing in a moment.",
+                "bullish_themes": [],
+                "bearish_themes": [],
+            }
 
 def score_metric(value, strong_threshold, weak_threshold, higher_is_better=True):
     if value is None:
@@ -483,7 +541,8 @@ def get_stock(ticker: str):
     growth_score = score_growth(growth)
 
     overall = calculate_overall_score(profitability_score, leverage_score, liquidity_score, growth_score)
-    memo = generate_research_memo(ticker, {"profitability": profitability, "leverage": leverage, "liquidity": liquidity, "growth": growth}, {"overall": overall, "profitability": profitability_score, "leverage": leverage_score, "liquidity": liquidity_score, "growth": growth_score}, trends, peer_comparison)
+    articles = get_news_articles(ticker)
+    ai_result = generate_research_memo(ticker, {"profitability": profitability, "leverage": leverage, "liquidity": liquidity, "growth": growth}, {"overall": overall, "profitability": profitability_score, "leverage": leverage_score, "liquidity": liquidity_score, "growth": growth_score}, trends, peer_comparison, articles)
 
 
     return {
@@ -509,5 +568,7 @@ def get_stock(ticker: str):
             "growth": growth_score,
             "overall": overall,
         },
-        "memo": memo,
+        "memo": ai_result.get("memo"),
+        "bullish_themes": ai_result.get("bullish_themes", []),
+        "bearish_themes": ai_result.get("bearish_themes", []),
     }
