@@ -38,6 +38,8 @@ def get_income_statement_yfinance(ticker: str):
     if df.empty:
         return None
 
+    import pandas as pd
+
     years = []
     for col in df.columns:
         try:
@@ -46,6 +48,9 @@ def get_income_statement_yfinance(ticker: str):
             gross_profit = df.loc["Gross Profit", col]
             ebit = df.loc["EBIT", col]
         except KeyError:
+            continue
+
+        if pd.isna(revenue) or pd.isna(net_income) or pd.isna(gross_profit) or pd.isna(ebit):
             continue
 
         years.append({
