@@ -125,6 +125,51 @@ function MemoCard({ memo }: { memo: string }) {
   );
 }
 
+function SentimentCard({ bullish, bearish }: { bullish: any[]; bearish: any[] }) {
+  if (bullish.length === 0 && bearish.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6">
+      <h3 className="font-semibold text-gray-900 mb-4">Market Sentiment</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <p className="text-sm font-semibold text-green-700 mb-2">Bullish Themes</p>
+          {bullish.length === 0 ? (
+            <p className="text-sm text-gray-600">No clear bullish themes found in recent coverage.</p>
+          ) : (
+            <div className="space-y-3">
+              {bullish.map((item, i) => (
+                <div key={i} className="text-sm text-gray-800">
+                  <p>{item.theme}</p>
+                  <p className="text-xs text-gray-600 mt-0.5">{item.sources?.join(", ")}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-red-700 mb-2">Bearish Themes</p>
+          {bearish.length === 0 ? (
+            <p className="text-sm text-gray-600">No clear bearish themes found in recent coverage.</p>
+          ) : (
+            <div className="space-y-3">
+              {bearish.map((item, i) => (
+                <div key={i} className="text-sm text-gray-800">
+                  <p>{item.theme}</p>
+                  <p className="text-xs text-gray-600 mt-0.5">{item.sources?.join(", ")}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <p className="text-xs text-gray-600 mt-4 pt-3 border-t border-gray-100">
+        AI-generated summary of recent news coverage. This is separate from the Investment Score above, which is based entirely on financial data.
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   const [ticker, setTicker] = useState("");
   const [stockData, setStockData] = useState<any>(null);
@@ -278,6 +323,8 @@ export default function Home() {
             {stockData.memo && (
               <MemoCard memo={stockData.memo} />
             )}
+                        <SentimentCard bullish={stockData.bullish_themes || []} bearish={stockData.bearish_themes || []} />
+
           </div>
         )}
       </div>
