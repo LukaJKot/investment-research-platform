@@ -58,6 +58,7 @@ def get_income_statement_yfinance(ticker: str):
 
         gross_profit = df.loc["Gross Profit", col] if "Gross Profit" in df.index else revenue
         ebit = df.loc["EBIT", col] if "EBIT" in df.index else (df.loc["Pretax Income", col] if "Pretax Income" in df.index else None)
+        shares = df.loc["Diluted Average Shares", col] if "Diluted Average Shares" in df.index else None
 
         if pd.isna(revenue) or pd.isna(net_income) or pd.isna(gross_profit) or ebit is None or pd.isna(ebit):
             continue
@@ -69,6 +70,7 @@ def get_income_statement_yfinance(ticker: str):
             "grossProfit": float(gross_profit),
             "ebit": float(ebit),
             "interestExpense": 0,
+            "weightedAverageShsOut": float(shares) if shares is not None and not pd.isna(shares) else None,
         })
 
     return (years if years else None), used_substitute
@@ -116,7 +118,15 @@ def get_cash_flow_yfinance(ticker: str):
     df = stock.cashflow
     if df.empty:
         return None
-    return []            
+    return []       
+
+def get_current_price(ticker: str):
+    stock = yf.Ticker(ticker)
+    info = stock.fast_info
+    try:
+        return float(info["lastPrice"])
+    except (KeyError, TypeError):
+        return None         
 
 def get_balance_sheet(ticker: str):
     url = f"https://financialmodelingprep.com/stable/balance-sheet-statement?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
@@ -270,6 +280,30 @@ def calculate_historical_trends(income_statement):
         })
     trends.reverse()
     return trends
+
+def calculate_valuation_ratios(income_statement, balance_sheet, ticker):
+    income = income_statement[0]
+    balance = balance_sheet[0]
+
+    price = get_current_price(ticker)
+    net_income = income["netIncome"]
+    shares = income.get("weightedAverageShsOut")
+    total_equity = balance["totalStockholdersEquity"]
+
+    if price is None or shares is None or shares == 0:
+        return {"pe_ratio": None, "pb_ratio": None, "price": price}
+
+    eps = net_income / shares
+    book_value_per_share = total_equity / shares
+
+    pe_ratio = round(price / eps, 2) if eps != 0 else None
+    pb_ratio = round(price / book_value_per_share, 2) if book_value_per_share != 0 else None
+
+    return {
+        "pe_ratio": pe_ratio,
+        "pb_ratio": pb_ratio,
+        "price": round(price, 2),
+    }    
 
 def get_peer_comparison(ticker: str):
     profile = get_company_profile(ticker)
@@ -512,7 +546,6 @@ def read_root():
     return {"message": "Hello from your backend!"}
   
 
-
 @app.get("/stock/{ticker}")
 def get_stock(ticker: str):
     income = get_income_statement(ticker)
@@ -536,6 +569,7 @@ def get_stock(ticker: str):
     liquidity = calculate_liquidity_ratios(balance_sheet)
     growth = calculate_growth_ratios(income)
     trends = calculate_historical_trends(income)
+    valuation = calculate_valuation_ratios(income, balance_sheet, ticker)
     peer_comparison = get_peer_comparison(ticker)
 
     profitability_score = score_profitability(profitability)
@@ -557,6 +591,7 @@ def get_stock(ticker: str):
         "balance_sheet": balance_sheet,
         "cash_flow": cash_flow,
         "trends": trends,
+        "valuation": valuation,
         "peer_comparison": peer_comparison,
         "ratios": {
             "profitability": profitability,
