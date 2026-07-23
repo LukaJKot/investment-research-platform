@@ -139,11 +139,13 @@ function SentimentCard({ bullish, bearish }: { bullish: any[]; bearish: any[] })
           ) : (
             <div className="space-y-3">
               {bullish.map((item, i) => (
-                <div key={i} className="text-sm text-gray-800">
-                  <p>{item.theme}</p>
-                  <p className="text-xs text-gray-600 mt-0.5">{item.sources?.join(", ")}</p>
-                </div>
-              ))}
+  <div key={i} className="text-sm text-gray-800">
+    <p>{item.theme}</p>
+    <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mt-0.5 inline-block">
+      {item.source}
+    </a>
+  </div>
+))}
             </div>
           )}
         </div>
@@ -154,11 +156,13 @@ function SentimentCard({ bullish, bearish }: { bullish: any[]; bearish: any[] })
           ) : (
             <div className="space-y-3">
               {bearish.map((item, i) => (
-                <div key={i} className="text-sm text-gray-800">
-                  <p>{item.theme}</p>
-                  <p className="text-xs text-gray-600 mt-0.5">{item.sources?.join(", ")}</p>
-                </div>
-              ))}
+  <div key={i} className="text-sm text-gray-800">
+    <p>{item.theme}</p>
+    <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mt-0.5 inline-block">
+      {item.source}
+    </a>
+  </div>
+))}
             </div>
           )}
         </div>

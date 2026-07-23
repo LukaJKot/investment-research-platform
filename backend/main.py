@@ -336,7 +336,7 @@ import time
 
 def generate_research_memo(ticker, ratios, scoring, trends, peer_comparison, articles):
     articles_text = "\n".join(
-        [f'- "{a["title"]}" ({a["source"]}): {a["description"]}' for a in articles]
+        [f'- "{a["title"]}" ({a["source"]}, URL: {a["url"]}): {a["description"]}' for a in articles]
     ) if articles else "No recent news articles available."
 
     prompt = f"""You are a financial writing assistant. You will be given pre-calculated financial data for {ticker}, plus recent news headlines. Respond ONLY with valid JSON — no markdown formatting, no code fences, no preamble text.
@@ -348,6 +348,7 @@ STRICT RULES:
 - Only reference the data and articles provided below. Do not invent facts.
 - For bullish_themes and bearish_themes: judge each headline by what it actually argues, not just its tone. An article using positive language but concluding "Sell" is bearish, not bullish.
 - Keep the memo to 3-4 short paragraphs. Keep each theme to 1-2 sentences.
+- For each theme in bullish_themes and bearish_themes, include the EXACT url from the article it came from, copied precisely from the URL given above. Do not modify or shorten URLs.
 
 DATA:
 Overall Score: {scoring['overall']['overall_score']}/100 ({scoring['overall']['rating']})
@@ -380,8 +381,8 @@ RECENT NEWS:
 Respond with exactly this JSON structure:
 {{
   "memo": "3-4 paragraph research memo as a single string",
-  "bullish_themes": [{{"theme": "short summary", "sources": ["source1"]}}],
-  "bearish_themes": [{{"theme": "short summary", "sources": ["source1"]}}]
+  "bullish_themes": [{{"theme": "1-2 sentence summary", "source": "source name", "url": "exact article URL"}}],
+  "bearish_themes": [{{"theme": "1-2 sentence summary", "source": "source name", "url": "exact article URL"}}]
 }}"""
 
     for attempt in range(2):
