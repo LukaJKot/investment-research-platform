@@ -174,6 +174,36 @@ function SentimentCard({ bullish, bearish }: { bullish: any[]; bearish: any[] })
   );
 }
 
+function ValuationCard({ valuation }: { valuation: any }) {
+  if (!valuation || valuation.price === null) return null;
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-gray-900">Valuation</h3>
+        <span className="text-xs text-gray-600">not included in score</span>
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <p className="text-xs text-gray-600 mb-1">Current Price</p>
+          <p className="text-lg font-bold text-gray-900">${valuation.price}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-600 mb-1">P/E Ratio</p>
+          <p className="text-lg font-bold text-gray-900">{valuation.pe_ratio ?? "N/A"}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-600 mb-1">P/B Ratio</p>
+          <p className="text-lg font-bold text-gray-900">{valuation.pb_ratio ?? "N/A"}</p>
+        </div>
+      </div>
+      <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-100">
+        Valuation is shown for reference only — whether a given P/E or P/B is "good" depends on your investing style (value vs. growth), so it isn't factored into the Investment Score above.
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   const [ticker, setTicker] = useState("");
   const [stockData, setStockData] = useState<any>(null);
@@ -252,6 +282,8 @@ export default function Home() {
     ))}
   </div>
 )}
+
+<ValuationCard valuation={stockData.valuation} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <CategoryCard
                 title="Profitability"
