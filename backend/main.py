@@ -385,10 +385,12 @@ Respond with exactly this JSON structure:
   "bearish_themes": [{{"theme": "1-2 sentence summary", "source": "source name", "url": "exact article URL"}}]
 }}"""
 
-    for attempt in range(2):
+    models_to_try = ["gemini-3.5-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"]
+
+    for attempt, model_name in enumerate(models_to_try):
         try:
             response = gemini_client.models.generate_content(
-                model="gemini-3.5-flash",
+                model=model_name,
                 contents=prompt,
             )
             text = response.text.strip()
@@ -398,8 +400,8 @@ Respond with exactly this JSON structure:
                     text = text[4:]
             return json.loads(text)
         except Exception:
-            if attempt == 0:
-                time.sleep(3)
+            if attempt < len(models_to_try) - 1:
+                time.sleep(3 + attempt * 2)
                 continue
             return {
                 "memo": "The AI research memo and sentiment analysis are temporarily unavailable due to high demand on our AI provider's servers. All scores and ratios above are unaffected and fully accurate — please try refreshing in a moment.",
