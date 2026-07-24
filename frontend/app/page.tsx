@@ -125,6 +125,59 @@ function MemoCard({ memo }: { memo: string }) {
   );
 }
 
+function recommendationColor(rec: string) {
+  const r = rec?.toLowerCase();
+  if (r === "strong_buy" || r === "buy") return "text-green-700 bg-green-50";
+  if (r === "hold") return "text-yellow-700 bg-yellow-50";
+  if (r === "sell" || r === "strong_sell") return "text-red-700 bg-red-50";
+  return "text-gray-700 bg-gray-50";
+}
+
+function formatRecommendation(rec: string) {
+  if (!rec) return "N/A";
+  return rec.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function AnalystConsensusCard({ consensus }: { consensus: any }) {
+  if (!consensus) return null;
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-gray-900">Analyst Consensus</h3>
+        <span className="text-xs text-gray-600">{consensus.num_analysts} analysts</span>
+      </div>
+      <div className="flex items-center justify-between mb-4">
+        <span className={`text-sm font-semibold px-3 py-1 rounded ${recommendationColor(consensus.recommendation)}`}>
+          {formatRecommendation(consensus.recommendation)}
+        </span>
+        {consensus.upside_pct !== null && (
+          <span className={`text-sm font-medium ${consensus.upside_pct >= 0 ? "text-green-700" : "text-red-700"}`}>
+            {consensus.upside_pct >= 0 ? "+" : ""}{consensus.upside_pct}% to target
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <p className="text-xs text-gray-600 mb-1">Low Target</p>
+          <p className="text-sm font-bold text-gray-900">${consensus.target_low_price ?? "N/A"}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-600 mb-1">Avg Target</p>
+          <p className="text-sm font-bold text-gray-900">${consensus.target_mean_price ?? "N/A"}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-600 mb-1">High Target</p>
+          <p className="text-sm font-bold text-gray-900">${consensus.target_high_price ?? "N/A"}</p>
+        </div>
+      </div>
+      <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-100">
+        Aggregated opinions from Wall Street analysts — a separate, external perspective, not part of the rules-based Investment Score.
+      </p>
+    </div>
+  );
+}
+
 function SentimentCard({ bullish, bearish }: { bullish: any[]; bearish: any[] }) {
   if (bullish.length === 0 && bearish.length === 0) return null;
 
@@ -283,7 +336,9 @@ export default function Home() {
   </div>
 )}
 
+
 <ValuationCard valuation={stockData.valuation} />
+<AnalystConsensusCard consensus={stockData.analyst_consensus} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <CategoryCard
                 title="Profitability"

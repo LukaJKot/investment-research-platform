@@ -128,6 +128,37 @@ def get_current_price(ticker: str):
     except (KeyError, TypeError):
         return None         
 
+def get_analyst_consensus(ticker: str):
+    stock = yf.Ticker(ticker)
+    try:
+        info = stock.info
+    except Exception:
+        return None
+
+    recommendation = info.get("recommendationKey")
+    num_analysts = info.get("numberOfAnalystOpinions")
+    target_mean = info.get("targetMeanPrice")
+    target_high = info.get("targetHighPrice")
+    target_low = info.get("targetLowPrice")
+    current_price = info.get("currentPrice")
+
+    if recommendation is None or num_analysts is None:
+        return None
+
+    upside_pct = None
+    if target_mean is not None and current_price:
+        upside_pct = round(((target_mean - current_price) / current_price) * 100, 1)
+
+    return {
+        "recommendation": recommendation,
+        "num_analysts": num_analysts,
+        "target_mean_price": round(target_mean, 2) if target_mean else None,
+        "target_high_price": round(target_high, 2) if target_high else None,
+        "target_low_price": round(target_low, 2) if target_low else None,
+        "current_price": round(current_price, 2) if current_price else None,
+        "upside_pct": upside_pct,
+    }        
+
 def get_balance_sheet(ticker: str):
     url = f"https://financialmodelingprep.com/stable/balance-sheet-statement?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
     response = requests.get(url)
@@ -544,7 +575,7 @@ def calculate_overall_score(profitability_score, leverage_score, liquidity_score
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
-  
+    
 
 @app.get("/stock/{ticker}")
 def get_stock(ticker: str):
@@ -570,6 +601,7 @@ def get_stock(ticker: str):
     growth = calculate_growth_ratios(income)
     trends = calculate_historical_trends(income)
     valuation = calculate_valuation_ratios(income, balance_sheet, ticker)
+    analyst_consensus = get_analyst_consensus(ticker)
     peer_comparison = get_peer_comparison(ticker)
 
     profitability_score = score_profitability(profitability)
@@ -592,6 +624,7 @@ def get_stock(ticker: str):
         "cash_flow": cash_flow,
         "trends": trends,
         "valuation": valuation,
+        "analyst_consensus": analyst_consensus,
         "peer_comparison": peer_comparison,
         "ratios": {
             "profitability": profitability,
