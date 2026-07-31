@@ -38,6 +38,25 @@ def get_income_statement(ticker: str):
         return None
     return data
 
+def calculate_cost_of_debt_and_tax_rate(income, total_debt):
+    interest_expense = income.get("interestExpense", 0)
+    income_tax_expense = income.get("incomeTaxExpense")
+    pretax_income = income.get("incomeBeforeTax")
+
+    if income_tax_expense is not None and pretax_income and pretax_income != 0:
+        tax_rate = income_tax_expense / pretax_income
+        tax_rate = max(0, min(tax_rate, 0.35))
+    else:
+        tax_rate = 0.21
+
+    if interest_expense and total_debt and total_debt != 0:
+        cost_of_debt = interest_expense / total_debt
+        cost_of_debt = max(0.01, min(cost_of_debt, 0.15))
+    else:
+        cost_of_debt = 0.05
+
+    return cost_of_debt, tax_rate    
+
 def get_income_statement_yfinance(ticker: str):
     stock = yf.Ticker(ticker)
     df = stock.financials
@@ -59,6 +78,8 @@ def get_income_statement_yfinance(ticker: str):
         gross_profit = df.loc["Gross Profit", col] if "Gross Profit" in df.index else revenue
         ebit = df.loc["EBIT", col] if "EBIT" in df.index else (df.loc["Pretax Income", col] if "Pretax Income" in df.index else None)
         shares = df.loc["Diluted Average Shares", col] if "Diluted Average Shares" in df.index else None
+        tax_provision = df.loc["Tax Provision", col] if "Tax Provision" in df.index else None
+        pretax_income = df.loc["Pretax Income", col] if "Pretax Income" in df.index else None
 
         if pd.isna(revenue) or pd.isna(net_income) or pd.isna(gross_profit) or ebit is None or pd.isna(ebit):
             continue
@@ -71,6 +92,8 @@ def get_income_statement_yfinance(ticker: str):
             "ebit": float(ebit),
             "interestExpense": 0,
             "weightedAverageShsOut": float(shares) if shares is not None and not pd.isna(shares) else None,
+            "incomeTaxExpense": float(tax_provision) if tax_provision is not None and not pd.isna(tax_provision) else None,
+            "incomeBeforeTax": float(pretax_income) if pretax_income is not None and not pd.isna(pretax_income) else None,
         })
 
     return (years if years else None), used_substitute
@@ -97,6 +120,7 @@ def get_balance_sheet_yfinance(ticker: str):
         current_assets = df.loc["Current Assets", col] if has_current_data else None
         current_liabilities = df.loc["Current Liabilities", col] if has_current_data else None
         inventory = df.loc["Inventory", col] if "Inventory" in df.index else 0
+        cash = df.loc["Cash And Cash Equivalents", col] if "Cash And Cash Equivalents" in df.index else 0
 
         if pd.isna(total_assets) or pd.isna(total_equity) or pd.isna(total_debt):
             continue
@@ -109,6 +133,7 @@ def get_balance_sheet_yfinance(ticker: str):
             "totalCurrentLiabilities": float(current_liabilities) if current_liabilities is not None and not pd.isna(current_liabilities) else None,
             "totalDebt": float(total_debt),
             "inventory": float(inventory) if inventory and not pd.isna(inventory) else 0,
+            "cashAndCashEquivalents": float(cash) if cash and not pd.isna(cash) else 0,
         })
 
     return years if years else None
@@ -118,7 +143,27 @@ def get_cash_flow_yfinance(ticker: str):
     df = stock.cashflow
     if df.empty:
         return None
-    return []       
+
+    import pandas as pd
+
+    years = []
+    for col in df.columns:
+        try:
+            operating_cf = df.loc["Operating Cash Flow", col]
+            capex = df.loc["Capital Expenditure", col]
+        except KeyError:
+            continue
+
+        if pd.isna(operating_cf) or pd.isna(capex):
+            continue
+
+        years.append({
+            "fiscalYear": str(col.year),
+            "operatingCashFlow": float(operating_cf),
+            "capitalExpenditure": float(capex),
+        })
+
+    return years if years else None
 
 def get_current_price(ticker: str):
     stock = yf.Ticker(ticker)
@@ -158,6 +203,101 @@ def get_analyst_consensus(ticker: str):
         "current_price": round(current_price, 2) if current_price else None,
         "upside_pct": upside_pct,
     }        
+
+def get_risk_free_rate():
+    try:
+        treasury = yf.Ticker("^TNX")
+        info = treasury.fast_info
+        return float(info["lastPrice"]) / 100
+    except Exception:
+        return 0.04
+
+def get_beta(ticker: str):
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        beta = info.get("beta")
+        return float(beta) if beta is not None else 1.0
+    except Exception:
+        return 1.0
+
+def calculate_cost_of_equity(risk_free_rate, beta, equity_risk_premium=0.045):
+    return risk_free_rate + beta * equity_risk_premium
+
+def calculate_wacc(market_cap, total_debt, cost_of_equity, cost_of_debt, tax_rate):
+    total_capital = market_cap + total_debt
+    if total_capital == 0:
+        return cost_of_equity
+
+    equity_weight = market_cap / total_capital
+    debt_weight = total_debt / total_capital
+
+    wacc = (equity_weight * cost_of_equity) + (debt_weight * cost_of_debt * (1 - tax_rate))
+    return wacc                    
+
+def calculate_fcf_history(cash_flow):
+    fcf_years = []
+    for year_data in cash_flow:
+        operating_cf = year_data.get("operatingCashFlow")
+        capex = year_data.get("capitalExpenditure")
+        if operating_cf is None or capex is None:
+            continue
+        fcf = operating_cf + capex
+        fcf_years.append({"fiscalYear": year_data["fiscalYear"], "fcf": fcf})
+    return fcf_years
+
+
+def calculate_fcf_growth_rate(fcf_years):
+    if len(fcf_years) < 2:
+        return 0.05
+
+    growth_rates = []
+    for i in range(len(fcf_years) - 1):
+        current = fcf_years[i]["fcf"]
+        previous = fcf_years[i + 1]["fcf"]
+        if previous > 0:
+            growth_rates.append((current - previous) / previous)
+
+    if not growth_rates:
+        return 0.05
+
+    avg_growth = sum(growth_rates) / len(growth_rates)
+    return max(-0.10, min(avg_growth, 0.20)) 
+
+def calculate_dcf(fcf_years, growth_rate, wacc, total_debt, cash, shares_outstanding, terminal_growth=0.025):
+    if not fcf_years or shares_outstanding is None or shares_outstanding == 0:
+        return None
+
+    most_recent_fcf = fcf_years[0]["fcf"]
+    if most_recent_fcf <= 0:
+        return None
+
+    projected_fcf = []
+    fcf = most_recent_fcf
+    for year in range(1, 6):
+        fcf = fcf * (1 + growth_rate)
+        projected_fcf.append(fcf)
+
+    discounted_fcf = []
+    for year, fcf in enumerate(projected_fcf, start=1):
+        discounted_value = fcf / ((1 + wacc) ** year)
+        discounted_fcf.append(discounted_value)
+
+    terminal_value = (projected_fcf[-1] * (1 + terminal_growth)) / (wacc - terminal_growth)
+    discounted_terminal_value = terminal_value / ((1 + wacc) ** 5)
+
+    enterprise_value = sum(discounted_fcf) + discounted_terminal_value
+    equity_value = enterprise_value - total_debt + cash
+    fair_value_per_share = equity_value / shares_outstanding
+
+    return {
+        "fair_value_per_share": round(fair_value_per_share, 2),
+        "enterprise_value": round(enterprise_value, 0),
+        "growth_rate_used": round(growth_rate, 4),
+        "wacc_used": round(wacc, 4),
+        "terminal_growth_used": terminal_growth,
+    }    
+
 
 def get_balance_sheet(ticker: str):
     url = f"https://financialmodelingprep.com/stable/balance-sheet-statement?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
@@ -575,7 +715,19 @@ def calculate_overall_score(profitability_score, leverage_score, liquidity_score
 @app.get("/")
 def read_root():
     return {"message": "Hello from your backend!"}
-    
+
+@app.get("/test-cashflow/{ticker}")
+def test_cashflow(ticker: str):
+    return get_cash_flow_yfinance(ticker)
+
+@app.get("/test-fcf/{ticker}")
+def test_fcf(ticker: str):
+    cash_flow = get_cash_flow_yfinance(ticker)
+    if cash_flow is None:
+        cash_flow = get_cash_flow(ticker)
+    fcf_history = calculate_fcf_history(cash_flow)
+    growth_rate = calculate_fcf_growth_rate(fcf_history)
+    return {"fcf_history": fcf_history, "growth_rate": growth_rate}
 
 @app.get("/stock/{ticker}")
 def get_stock(ticker: str):
@@ -601,6 +753,22 @@ def get_stock(ticker: str):
     growth = calculate_growth_ratios(income)
     trends = calculate_historical_trends(income)
     valuation = calculate_valuation_ratios(income, balance_sheet, ticker)
+    fcf_history = calculate_fcf_history(cash_flow) if cash_flow else []
+    growth_rate = calculate_fcf_growth_rate(fcf_history)
+    rf = get_risk_free_rate()
+    beta = get_beta(ticker)
+    cost_of_equity = calculate_cost_of_equity(rf, beta)
+    cost_of_debt, tax_rate = calculate_cost_of_debt_and_tax_rate(income[0], balance_sheet[0]["totalDebt"])
+    market_cap = profile["marketCap"] if (profile := get_company_profile(ticker)) else (get_current_price(ticker) or 0) * (income[0].get("weightedAverageShsOut") or 0)
+    wacc = calculate_wacc(market_cap, balance_sheet[0]["totalDebt"], cost_of_equity, cost_of_debt, tax_rate)
+    dcf = calculate_dcf(
+        fcf_history,
+        growth_rate,
+        wacc,
+        balance_sheet[0]["totalDebt"],
+        balance_sheet[0].get("cashAndCashEquivalents", 0),
+        income[0].get("weightedAverageShsOut"),
+    )
     analyst_consensus = get_analyst_consensus(ticker)
     peer_comparison = get_peer_comparison(ticker)
 
@@ -624,6 +792,7 @@ def get_stock(ticker: str):
         "cash_flow": cash_flow,
         "trends": trends,
         "valuation": valuation,
+        "dcf": dcf,
         "analyst_consensus": analyst_consensus,
         "peer_comparison": peer_comparison,
         "ratios": {
