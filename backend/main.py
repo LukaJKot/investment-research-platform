@@ -221,6 +221,15 @@ def get_beta(ticker: str):
     except Exception:
         return 1.0
 
+def get_analyst_growth_estimate(ticker: str):
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        growth = info.get("earningsGrowth")
+        return float(growth) if growth is not None else None
+    except Exception:
+        return None        
+
 def calculate_cost_of_equity(risk_free_rate, beta, equity_risk_premium=0.045):
     return risk_free_rate + beta * equity_risk_premium
 
@@ -262,28 +271,45 @@ def calculate_fcf_growth_rate(fcf_years):
         return 0.05
 
     avg_growth = sum(growth_rates) / len(growth_rates)
-    return max(-0.10, min(avg_growth, 0.20)) 
+    return max(-0.10, min(avg_growth, 0.20))
 
-def calculate_dcf(fcf_years, growth_rate, wacc, total_debt, cash, shares_outstanding, terminal_growth=0.025):
-    if not fcf_years or shares_outstanding is None or shares_outstanding == 0:
-        return None
+def calculate_blended_growth_rate(fcf_growth, revenue_growth, net_income_growth, analyst_growth):
+    signals = [
+        (fcf_growth, 0.30),
+        (revenue_growth, 0.25),
+        (net_income_growth, 0.20),
+        (analyst_growth, 0.25),
+    ]
 
-    most_recent_fcf = fcf_years[0]["fcf"]
-    if most_recent_fcf <= 0:
-        return None
+    available = [(value, weight) for value, weight in signals if value is not None]
+    if not available:
+        return 0.05
 
-    projected_fcf = []
+    total_weight = sum(weight for _, weight in available)
+    blended = sum(value * weight for value, weight in available) / total_weight
+
+    return max(-0.10, min(blended, 0.20))
+
+def project_multistage_fcf(most_recent_fcf, start_growth, terminal_growth, years=5):
+    projected = []
     fcf = most_recent_fcf
-    for year in range(1, 6):
-        fcf = fcf * (1 + growth_rate)
-        projected_fcf.append(fcf)
+    for year in range(1, years + 1):
+        weight = (year - 1) / (years - 1) if years > 1 else 1
+        current_growth = start_growth + (terminal_growth - start_growth) * weight
+        fcf = fcf * (1 + current_growth)
+        projected.append({"year": year, "growth_rate": round(current_growth, 4), "fcf": fcf})
+    return projected  
 
-    discounted_fcf = []
-    for year, fcf in enumerate(projected_fcf, start=1):
-        discounted_value = fcf / ((1 + wacc) ** year)
-        discounted_fcf.append(discounted_value)
 
-    terminal_value = (projected_fcf[-1] * (1 + terminal_growth)) / (wacc - terminal_growth)
+def calculate_dcf(most_recent_fcf, blended_growth, wacc, total_debt, cash, shares_outstanding, terminal_growth=0.025):
+    if most_recent_fcf is None or most_recent_fcf <= 0 or shares_outstanding is None or shares_outstanding == 0:
+        return None
+
+    projected = project_multistage_fcf(most_recent_fcf, blended_growth, terminal_growth)
+
+    discounted_fcf = [item["fcf"] / ((1 + wacc) ** item["year"]) for item in projected]
+
+    terminal_value = (projected[-1]["fcf"] * (1 + terminal_growth)) / (wacc - terminal_growth)
     discounted_terminal_value = terminal_value / ((1 + wacc) ** 5)
 
     enterprise_value = sum(discounted_fcf) + discounted_terminal_value
@@ -293,10 +319,17 @@ def calculate_dcf(fcf_years, growth_rate, wacc, total_debt, cash, shares_outstan
     return {
         "fair_value_per_share": round(fair_value_per_share, 2),
         "enterprise_value": round(enterprise_value, 0),
-        "growth_rate_used": round(growth_rate, 4),
+        "starting_growth_rate": round(blended_growth, 4),
         "wacc_used": round(wacc, 4),
         "terminal_growth_used": terminal_growth,
-    }    
+        "projected_fcf": [{"year": p["year"], "growth_rate": p["growth_rate"], "fcf": round(p["fcf"], 0)} for p in projected],
+        "inputs": {
+            "most_recent_fcf": most_recent_fcf,
+            "total_debt": total_debt,
+            "cash": cash,
+            "shares_outstanding": shares_outstanding,
+        },
+    }
 
 
 def get_balance_sheet(ticker: str):
@@ -729,6 +762,7 @@ def test_fcf(ticker: str):
     growth_rate = calculate_fcf_growth_rate(fcf_history)
     return {"fcf_history": fcf_history, "growth_rate": growth_rate}
 
+
 @app.get("/stock/{ticker}")
 def get_stock(ticker: str):
     income = get_income_statement(ticker)
@@ -754,16 +788,27 @@ def get_stock(ticker: str):
     trends = calculate_historical_trends(income)
     valuation = calculate_valuation_ratios(income, balance_sheet, ticker)
     fcf_history = calculate_fcf_history(cash_flow) if cash_flow else []
-    growth_rate = calculate_fcf_growth_rate(fcf_history)
+    growth_ratios_for_dcf = calculate_growth_ratios(income)
+    fcf_growth = calculate_fcf_growth_rate(fcf_history)
+    analyst_growth = get_analyst_growth_estimate(ticker)
+    blended_growth = calculate_blended_growth_rate(
+        fcf_growth,
+        growth_ratios_for_dcf["revenue_growth"],
+        growth_ratios_for_dcf["net_income_growth"],
+        analyst_growth,
+    )
+
     rf = get_risk_free_rate()
     beta = get_beta(ticker)
     cost_of_equity = calculate_cost_of_equity(rf, beta)
     cost_of_debt, tax_rate = calculate_cost_of_debt_and_tax_rate(income[0], balance_sheet[0]["totalDebt"])
     market_cap = profile["marketCap"] if (profile := get_company_profile(ticker)) else (get_current_price(ticker) or 0) * (income[0].get("weightedAverageShsOut") or 0)
     wacc = calculate_wacc(market_cap, balance_sheet[0]["totalDebt"], cost_of_equity, cost_of_debt, tax_rate)
+
+    most_recent_fcf = fcf_history[0]["fcf"] if fcf_history else None
     dcf = calculate_dcf(
-        fcf_history,
-        growth_rate,
+        most_recent_fcf,
+        blended_growth,
         wacc,
         balance_sheet[0]["totalDebt"],
         balance_sheet[0].get("cashAndCashEquivalents", 0),
