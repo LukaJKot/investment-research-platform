@@ -257,6 +257,101 @@ function ValuationCard({ valuation }: { valuation: any }) {
   );
 }
 
+function calculateDcfLive(inputs: any, growthRate: number, wacc: number, terminalGrowth: number) {
+  const { most_recent_fcf, total_debt, cash, shares_outstanding } = inputs;
+  let fcf = most_recent_fcf;
+  let sumDiscounted = 0;
+  let lastFcf = fcf;
+
+  for (let year = 1; year <= 5; year++) {
+    const weight = (year - 1) / 4;
+    const currentGrowth = growthRate + (terminalGrowth - growthRate) * weight;
+    fcf = fcf * (1 + currentGrowth);
+    sumDiscounted += fcf / Math.pow(1 + wacc, year);
+    lastFcf = fcf;
+  }
+
+  const terminalValue = (lastFcf * (1 + terminalGrowth)) / (wacc - terminalGrowth);
+  const discountedTerminalValue = terminalValue / Math.pow(1 + wacc, 5);
+  const enterpriseValue = sumDiscounted + discountedTerminalValue;
+  const equityValue = enterpriseValue - total_debt + cash;
+  return equityValue / shares_outstanding;
+}
+
+function DcfCard({ dcf, currentPrice }: { dcf: any; currentPrice: number | null }) {
+  const [growthRate, setGrowthRate] = useState(dcf?.starting_growth_rate ?? 0.05);
+  const [wacc, setWacc] = useState(dcf?.wacc_used ?? 0.09);
+
+  if (!dcf) return null;
+
+  const liveValue = calculateDcfLive(dcf.inputs, growthRate, wacc, dcf.terminal_growth_used);
+  const diffPct = currentPrice ? ((liveValue - currentPrice) / currentPrice) * 100 : null;
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-gray-900">Discounted Cash Flow (DCF)</h3>
+        <span className="text-xs text-gray-600">not included in score</span>
+      </div>
+
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <p className="text-xs text-gray-600 mb-1">Estimated Fair Value</p>
+          <p className="text-3xl font-bold text-gray-900">${liveValue.toFixed(2)}</p>
+        </div>
+        {currentPrice && (
+          <div className="text-right">
+            <p className="text-xs text-gray-600 mb-1">Current Price</p>
+            <p className="text-2xl font-semibold text-gray-700">${currentPrice.toFixed(2)}</p>
+            {diffPct !== null && (
+              <p className={`text-sm font-medium ${diffPct >= 0 ? "text-green-700" : "text-red-700"}`}>
+                {diffPct >= 0 ? "+" : ""}{diffPct.toFixed(1)}% vs. fair value
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-gray-700">Starting Growth Rate</span>
+            <span className="font-semibold text-gray-900">{(growthRate * 100).toFixed(1)}%</span>
+          </div>
+          <input
+            type="range"
+            min="-10"
+            max="30"
+            step="0.5"
+            value={growthRate * 100}
+            onChange={(e) => setGrowthRate(Number(e.target.value) / 100)}
+            className="w-full"
+          />
+        </div>
+        <div>
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-gray-700">Discount Rate (WACC)</span>
+            <span className="font-semibold text-gray-900">{(wacc * 100).toFixed(1)}%</span>
+          </div>
+          <input
+            type="range"
+            min="4"
+            max="18"
+            step="0.25"
+            value={wacc * 100}
+            onChange={(e) => setWacc(Number(e.target.value) / 100)}
+            className="w-full"
+          />
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-600 mt-4 pt-3 border-t border-gray-100">
+        Our default assumptions blend historical growth, revenue/earnings trends, and analyst estimates. Adjust the sliders above to see how your own view of growth and risk changes the estimated fair value. A DCF is highly sensitive to these assumptions — this is one lens on value, not a prediction.
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   const [ticker, setTicker] = useState("");
   const [stockData, setStockData] = useState<any>(null);
@@ -339,6 +434,7 @@ export default function Home() {
 
 <ValuationCard valuation={stockData.valuation} />
 <AnalystConsensusCard consensus={stockData.analyst_consensus} />
+<DcfCard dcf={stockData.dcf} currentPrice={stockData.valuation?.price} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <CategoryCard
                 title="Profitability"
