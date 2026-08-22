@@ -605,7 +605,7 @@ export default function Home() {
               <CategoryCard
                 title="Profitability"
                 weight="35% of score"
-                maxScore={35}
+                maxScore={10}
                 data={{
                   gross_margin: { value: stockData.ratios.profitability.gross_margin, label: stockData.scoring.profitability.gross_margin.label },
                   net_margin: { value: stockData.ratios.profitability.net_margin, label: stockData.scoring.profitability.net_margin.label },
@@ -623,7 +623,7 @@ export default function Home() {
               <CategoryCard
                 title="Leverage"
                 weight="25% of score"
-                maxScore={25}
+                maxScore={10}
                 data={{
                   debt_to_equity: { value: stockData.ratios.leverage.debt_to_equity, label: stockData.scoring.leverage.debt_to_equity.label },
                   interest_coverage: { value: stockData.ratios.leverage.interest_coverage, label: stockData.scoring.leverage.interest_coverage.label },
@@ -637,7 +637,7 @@ export default function Home() {
               <CategoryCard
                 title="Liquidity"
                 weight="15% of score"
-                maxScore={15}
+                maxScore={10}
                 data={{
                   current_ratio: { value: stockData.ratios.liquidity.current_ratio, label: stockData.scoring.liquidity.current_ratio.label },
                   quick_ratio: { value: stockData.ratios.liquidity.quick_ratio, label: stockData.scoring.liquidity.quick_ratio.label },
@@ -651,7 +651,7 @@ export default function Home() {
               <CategoryCard
                 title="Growth"
                 weight="25% of score"
-                maxScore={25}
+                maxScore={10}
                 data={{
                   revenue_growth: { value: stockData.ratios.growth.revenue_growth, label: stockData.scoring.growth.revenue_growth.label },
                   net_income_growth: { value: stockData.ratios.growth.net_income_growth, label: stockData.scoring.growth.net_income_growth.label },
