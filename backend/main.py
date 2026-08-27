@@ -462,12 +462,18 @@ def calculate_growth_ratios(income_statement):
     current_net_income = current["netIncome"]
     previous_net_income = previous["netIncome"]
 
-    revenue_growth = (current_revenue - previous_revenue) / previous_revenue
-    net_income_growth = (current_net_income - previous_net_income) / previous_net_income
+    revenue_growth = (
+        round((current_revenue - previous_revenue) / previous_revenue, 4)
+        if previous_revenue else None
+    )
+    net_income_growth = (
+        round((current_net_income - previous_net_income) / previous_net_income, 4)
+        if previous_net_income else None
+    )
 
     return {
-        "revenue_growth": round(revenue_growth, 4),
-        "net_income_growth": round(net_income_growth, 4),
+        "revenue_growth": revenue_growth,
+        "net_income_growth": net_income_growth,
     }
 
 def calculate_historical_trends(income_statement):
