@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 import requests
+import sqlite3
+from datetime import datetime
 from google import genai
 import yfinance as yf
 
@@ -22,6 +24,287 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 MARKETAUX_API_KEY = os.getenv("MARKETAUX_API_KEY")
+SCREENER_SECRET = os.getenv("SCREENER_SECRET", "changeme")
+
+DB_PATH = "stocks.db"
+
+# ==========================================
+# SCREENER: DATABASE SETUP
+# ==========================================
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stocks (
+            ticker TEXT PRIMARY KEY,
+            score REAL,
+            rating TEXT,
+            sector TEXT,
+            market_cap REAL,
+            price REAL,
+            pe_ratio REAL,
+            pb_ratio REAL,
+            revenue_growth REAL,
+            net_income_growth REAL,
+            gross_margin REAL,
+            net_margin REAL,
+            roe REAL,
+            roa REAL,
+            debt_to_equity REAL,
+            interest_coverage REAL,
+            current_ratio REAL,
+            quick_ratio REAL,
+            profitability_score REAL,
+            leverage_score REAL,
+            liquidity_score REAL,
+            growth_score REAL,
+            last_updated TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# ==========================================
+# SCREENER: TICKER UNIVERSE
+# ==========================================
+# Starter list: a broad cross-section of large/mid-cap US stocks across sectors.
+# This can be expanded over time. Kept manageable so nightly runs finish quickly on yfinance.
+
+SCREENER_TICKERS = [
+    # Technology
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "AVGO", "ORCL", "CRM", "ADBE",
+    "CSCO", "ACN", "AMD", "INTC", "IBM", "QCOM", "TXN", "INTU", "NOW", "AMAT",
+    "MU", "ADI", "LRCX", "PANW", "SNPS", "CDNS", "KLAC", "ANET", "FTNT", "MSI",
+    # Communication Services
+    "NFLX", "DIS", "CMCSA", "T", "VZ", "TMUS", "CHTR", "EA", "TTWO", "WBD",
+    # Consumer Discretionary
+    "TSLA", "HD", "MCD", "NKE", "LOW", "SBUX", "BKNG", "TJX", "ABNB", "MAR",
+    "GM", "F", "CMG", "ORLY", "AZO", "YUM", "ROST", "DHI", "LEN", "NVR",
+    # Consumer Staples
+    "WMT", "PG", "KO", "PEP", "COST", "PM", "MDLZ", "CL", "MO", "TGT",
+    "KMB", "GIS", "SYY", "STZ", "KHC", "HSY", "MNST", "KR", "ADM", "TAP",
+    # Financials
+    "BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "AXP", "C",
+    "SPGI", "BLK", "SCHW", "PGR", "CB", "MMC", "PNC", "USB", "TFC", "AON",
+    # Healthcare
+    "UNH", "JNJ", "LLY", "ABBV", "MRK", "PFE", "TMO", "ABT", "DHR", "BMY",
+    "AMGN", "MDT", "ISRG", "GILD", "CVS", "CI", "VRTX", "REGN", "ELV", "ZTS",
+    # Industrials
+    "GE", "CAT", "UNP", "HON", "RTX", "BA", "UPS", "LMT", "DE", "ADP",
+    "GD", "NOC", "ETN", "ITW", "EMR", "CSX", "NSC", "FDX", "WM", "PH",
+    # Energy
+    "XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "OXY", "WMB",
+    # Materials
+    "LIN", "SHW", "APD", "ECL", "FCX", "NEM", "DOW", "DD", "PPG", "NUE",
+    # Real Estate
+    "PLD", "AMT", "EQIX", "SPG", "PSA", "O", "WELL", "DLR", "AVB", "EQR",
+    # Utilities
+    "NEE", "SO", "DUK", "AEP", "SRE", "D", "EXC", "XEL", "ED", "WEC",
+]
+
+def get_sector_and_marketcap_yfinance(ticker: str):
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        return info.get("sector"), info.get("marketCap")
+    except Exception:
+        return None, None
+
+def score_single_stock_for_screener(ticker: str):
+    """Fetch + score one stock using yfinance only (no FMP calls, no daily limit)."""
+    try:
+        income, _ = get_income_statement_yfinance(ticker)
+        balance_sheet = get_balance_sheet_yfinance(ticker)
+
+        if income is None or balance_sheet is None:
+            return None
+
+        profitability = calculate_profitability_ratios(income, balance_sheet)
+        leverage = calculate_leverage_ratios(income, balance_sheet)
+        liquidity = calculate_liquidity_ratios(balance_sheet)
+        growth = calculate_growth_ratios(income)
+
+        profitability_score = score_profitability(profitability)
+        leverage_score = score_leverage(leverage)
+        liquidity_score = score_liquidity(liquidity)
+        growth_score = score_growth(growth)
+
+        overall = calculate_overall_score(profitability_score, leverage_score, liquidity_score, growth_score)
+
+        valuation = calculate_valuation_ratios(income, balance_sheet, ticker)
+        sector, market_cap = get_sector_and_marketcap_yfinance(ticker)
+
+        return {
+            "ticker": ticker,
+            "score": overall["overall_score"],
+            "rating": overall["rating"],
+            "sector": sector,
+            "market_cap": market_cap,
+            "price": valuation.get("price"),
+            "pe_ratio": valuation.get("pe_ratio"),
+            "pb_ratio": valuation.get("pb_ratio"),
+            "revenue_growth": growth.get("revenue_growth"),
+            "net_income_growth": growth.get("net_income_growth"),
+            "gross_margin": profitability.get("gross_margin"),
+            "net_margin": profitability.get("net_margin"),
+            "roe": profitability.get("roe"),
+            "roa": profitability.get("roa"),
+            "debt_to_equity": leverage.get("debt_to_equity"),
+            "interest_coverage": leverage.get("interest_coverage"),
+            "current_ratio": liquidity.get("current_ratio"),
+            "quick_ratio": liquidity.get("quick_ratio"),
+            "profitability_score": profitability_score["category_score"],
+            "leverage_score": leverage_score["category_score"],
+            "liquidity_score": liquidity_score["category_score"],
+            "growth_score": growth_score["category_score"],
+            "last_updated": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        print(f"Screener: failed to score {ticker}: {e}")
+        return None
+
+def score_all_stocks():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    scored = 0
+    failed = 0
+
+    for ticker in SCREENER_TICKERS:
+        result = score_single_stock_for_screener(ticker)
+        if result is None:
+            failed += 1
+            continue
+
+        cursor.execute("""
+            INSERT INTO stocks (
+                ticker, score, rating, sector, market_cap, price, pe_ratio, pb_ratio,
+                revenue_growth, net_income_growth, gross_margin, net_margin, roe, roa,
+                debt_to_equity, interest_coverage, current_ratio, quick_ratio,
+                profitability_score, leverage_score, liquidity_score, growth_score, last_updated
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(ticker) DO UPDATE SET
+                score=excluded.score, rating=excluded.rating, sector=excluded.sector,
+                market_cap=excluded.market_cap, price=excluded.price, pe_ratio=excluded.pe_ratio,
+                pb_ratio=excluded.pb_ratio, revenue_growth=excluded.revenue_growth,
+                net_income_growth=excluded.net_income_growth, gross_margin=excluded.gross_margin,
+                net_margin=excluded.net_margin, roe=excluded.roe, roa=excluded.roa,
+                debt_to_equity=excluded.debt_to_equity, interest_coverage=excluded.interest_coverage,
+                current_ratio=excluded.current_ratio, quick_ratio=excluded.quick_ratio,
+                profitability_score=excluded.profitability_score, leverage_score=excluded.leverage_score,
+                liquidity_score=excluded.liquidity_score, growth_score=excluded.growth_score,
+                last_updated=excluded.last_updated
+        """, (
+            result["ticker"], result["score"], result["rating"], result["sector"],
+            result["market_cap"], result["price"], result["pe_ratio"], result["pb_ratio"],
+            result["revenue_growth"], result["net_income_growth"], result["gross_margin"],
+            result["net_margin"], result["roe"], result["roa"], result["debt_to_equity"],
+            result["interest_coverage"], result["current_ratio"], result["quick_ratio"],
+            result["profitability_score"], result["leverage_score"], result["liquidity_score"],
+            result["growth_score"], result["last_updated"],
+        ))
+        scored += 1
+
+    conn.commit()
+    conn.close()
+    return {"scored": scored, "failed": failed, "total": len(SCREENER_TICKERS)}
+
+@app.get("/internal/rescore-all-stocks")
+def rescore_all_stocks(key: str = ""):
+    if key != SCREENER_SECRET:
+        return {"error": "Unauthorized"}
+    result = score_all_stocks()
+    return {"status": "complete", **result}
+
+@app.get("/screener")
+def screener(
+    rating: str = None,
+    sector: str = None,
+    pe_max: float = None,
+    pe_min: float = None,
+    pb_max: float = None,
+    revenue_growth_min: float = None,
+    net_income_growth_min: float = None,
+    debt_to_equity_max: float = None,
+    sort_by: str = "score",
+    limit: int = 100,
+):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    query = "SELECT * FROM stocks WHERE 1=1"
+    params = []
+
+    if rating:
+        ratings = [r.strip() for r in rating.split(",")]
+        placeholders = ",".join("?" for _ in ratings)
+        query += f" AND rating IN ({placeholders})"
+        params.extend(ratings)
+
+    if sector:
+        sectors = [s.strip() for s in sector.split(",")]
+        placeholders = ",".join("?" for _ in sectors)
+        query += f" AND sector IN ({placeholders})"
+        params.extend(sectors)
+
+    if pe_max is not None:
+        query += " AND pe_ratio IS NOT NULL AND pe_ratio <= ?"
+        params.append(pe_max)
+
+    if pe_min is not None:
+        query += " AND pe_ratio IS NOT NULL AND pe_ratio >= ?"
+        params.append(pe_min)
+
+    if pb_max is not None:
+        query += " AND pb_ratio IS NOT NULL AND pb_ratio <= ?"
+        params.append(pb_max)
+
+    if revenue_growth_min is not None:
+        query += " AND revenue_growth IS NOT NULL AND revenue_growth >= ?"
+        params.append(revenue_growth_min)
+
+    if net_income_growth_min is not None:
+        query += " AND net_income_growth IS NOT NULL AND net_income_growth >= ?"
+        params.append(net_income_growth_min)
+
+    if debt_to_equity_max is not None:
+        query += " AND debt_to_equity IS NOT NULL AND debt_to_equity <= ?"
+        params.append(debt_to_equity_max)
+
+    allowed_sort_columns = {"score", "pe_ratio", "pb_ratio", "revenue_growth", "market_cap"}
+    sort_column = sort_by if sort_by in allowed_sort_columns else "score"
+    query += f" ORDER BY {sort_column} DESC LIMIT ?"
+    params.append(limit)
+
+    rows = cursor.execute(query, params).fetchall()
+    conn.close()
+
+    results = [dict(row) for row in rows]
+    return {"results": results, "count": len(results)}
+
+@app.get("/screener/sectors")
+def screener_sectors():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    rows = cursor.execute("SELECT DISTINCT sector FROM stocks WHERE sector IS NOT NULL ORDER BY sector").fetchall()
+    conn.close()
+    return {"sectors": [r[0] for r in rows]}
+
+@app.get("/screener/status")
+def screener_status():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    row = cursor.execute("SELECT COUNT(*), MAX(last_updated) FROM stocks").fetchone()
+    conn.close()
+    return {"total_stocks": row[0], "last_updated": row[1]}
+
+# ==========================================
+# EXISTING PLATFORM CODE (unchanged below)
+# ==========================================
 
 @app.get("/test-news/{ticker}")
 def test_news(ticker: str):
@@ -165,13 +448,29 @@ def get_cash_flow_yfinance(ticker: str):
 
     return years if years else None
 
-def get_current_price(ticker: str):
-    stock = yf.Ticker(ticker)
-    info = stock.fast_info
+def get_current_price_fmp(ticker: str):
+    url = f"https://financialmodelingprep.com/stable/quote?symbol={ticker}&apikey={FMP_API_KEY}"
     try:
+        response = requests.get(url, timeout=10)
+        data = response.json()
+    except (ValueError, requests.RequestException):
+        return None
+    if not isinstance(data, list) or len(data) == 0:
+        return None
+    price = data[0].get("price")
+    return float(price) if price is not None else None
+
+def get_current_price(ticker: str):
+    price = get_current_price_fmp(ticker)
+    if price is not None:
+        return price
+
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.fast_info
         return float(info["lastPrice"])
-    except (KeyError, TypeError):
-        return None         
+    except Exception:
+        return None
 
 def get_analyst_consensus(ticker: str):
     stock = yf.Ticker(ticker)
