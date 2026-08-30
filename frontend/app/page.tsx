@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 // ---------- Design tokens ----------
 const ACCENT = "#2d5a96";
@@ -524,20 +526,32 @@ function HeroScoreCard({ stockData }: { stockData: any }) {
 
 // ---------- Main page ----------
 
-export default function Home() {
+function HomeContent() {
+  const searchParams = useSearchParams();
   const [ticker, setTicker] = useState("");
   const [stockData, setStockData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSearch = async () => {
-    if (!ticker) return;
+  const handleSearch = async (overrideTicker?: string) => {
+    const searchTicker = overrideTicker ?? ticker;
+    if (!searchTicker) return;
     setLoading(true);
     setStockData(null);
-    const response = await fetch(`https://investment-research-api.onrender.com/stock/${ticker}`);
+    const response = await fetch(`https://investment-research-api.onrender.com/stock/${searchTicker}`);
     const data = await response.json();
     setStockData(data);
     setLoading(false);
   };
+
+  useEffect(() => {
+    const tickerParam = searchParams.get("ticker");
+    if (tickerParam) {
+      const upper = tickerParam.toUpperCase();
+      setTicker(upper);
+      handleSearch(upper);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
   const num = (v: number) => v.toFixed(2);
@@ -546,9 +560,19 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#fafaf8] px-6 py-10">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-1.5">Investment Research Platform</h1>
-          <p className="text-gray-500 text-sm">Rules-based fundamental analysis for any public stock</p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-1.5">Investment Research Platform</h1>
+            <p className="text-gray-500 text-sm">Rules-based fundamental analysis for any public stock</p>
+          </div>
+          <Link
+            href="/screener"
+            className="text-sm font-medium flex items-center gap-1.5 hover:underline whitespace-nowrap mt-1"
+            style={{ color: ACCENT }}
+          >
+            <i className="ti ti-filter"></i>
+            Screen stocks
+          </Link>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-8">
@@ -562,7 +586,7 @@ export default function Home() {
               className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-900 bg-[#fafaf8] focus:outline-none focus:ring-2 focus:ring-[#2d5a96]/40 focus:border-[#2d5a96] transition-all"
             />
             <button
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               className="text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
               style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DARK})` }}
             >
@@ -684,5 +708,13 @@ export default function Home() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#fafaf8]" />}>
+      <HomeContent />
+    </Suspense>
   );
 }
