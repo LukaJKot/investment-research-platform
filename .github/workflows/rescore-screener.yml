@@ -2,7 +2,7 @@ name: Rescore Screener
 
 on:
   schedule:
-    - cron: '0 5 * * *'  # 5 AM UTC daily
+    - cron: '0 10 * * *'  # 3 AM Pacific (PDT) / 2 AM Pacific (PST in winter)
   workflow_dispatch:  # lets you manually trigger it from GitHub's UI too
 
 jobs:
