@@ -1,0 +1,13 @@
+name: Rescore Screener
+
+on:
+  schedule:
+    - cron: '0 5 * * *'  # 5 AM UTC daily
+  workflow_dispatch:  # lets you manually trigger it from GitHub's UI too
+
+jobs:
+  rescore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger rescore endpoint
+        run: curl "https://investment-research-api.onrender.com/internal/rescore-all-stocks?key=${{ secrets.SCREENER_SECRET }}"
